@@ -4,6 +4,7 @@ import { useStore } from "@/lib/store";
 
 export default function Controls() {
   const {
+    unlockedCamera,
     unlockedMotion,
     unlockedFire,
     unlockedTracking,
@@ -15,27 +16,26 @@ export default function Controls() {
     activeTracking,
     activeAutoFire,
     activeMotionPrediction,
+    activeLockTarget,
     setActiveCamera,
     setActiveMotionDetection,
     setActiveFire,
     setActiveTracking,
     setActiveAutoFire,
     setActiveMotionPrediction,
+    setActiveLockTarget,
   } = useStore();
 
   return (
-    <div className="border-4 grid grid-cols-2 p-6">
+    <div
+      className="border-4 grid grid-flow-col grid-cols-2 grid-rows-3 p-6 closed"
+      id="controls"
+    >
       <ToggleButton
         label="camera feed"
         value={activeCamera}
         onChange={setActiveCamera}
-        locked={false}
-      />
-      <ToggleButton
-        label="motion detection"
-        value={activeMotionDetection}
-        onChange={setActiveMotionDetection}
-        locked={!unlockedMotion}
+        locked={!unlockedCamera}
       />
       <ToggleButton
         label="left click to fire"
@@ -44,22 +44,34 @@ export default function Controls() {
         locked={!unlockedFire}
       />
       <ToggleButton
+        label="motion detection"
+        value={activeMotionDetection}
+        onChange={setActiveMotionDetection}
+        locked={!unlockedMotion}
+      />
+      <ToggleButton
         label="tracking"
         value={activeTracking}
         onChange={setActiveTracking}
         locked={!unlockedTracking}
       />
       <ToggleButton
-        label="auto fire"
-        value={activeAutoFire}
-        onChange={setActiveAutoFire}
-        locked={!unlockedAutoFire}
+        label="lock target"
+        value={activeLockTarget}
+        onChange={setActiveLockTarget}
+        locked={!unlockedTracking}
       />
       <ToggleButton
         label="motion prediction"
         value={activeMotionPrediction}
         onChange={setActiveMotionPrediction}
         locked={!unlockedMotionPrediction}
+      />
+      <ToggleButton
+        label="auto fire"
+        value={activeAutoFire}
+        onChange={setActiveAutoFire}
+        locked={!unlockedAutoFire}
       />
     </div>
   );
@@ -78,7 +90,7 @@ function ToggleButton({
 }) {
   return (
     <button
-      className="flex items-center font-semibold text-lg justify-start gap-2 uppercase cursor-pointer disabled:cursor-not-allowed disabled:text-muted-foreground"
+      className="flex items-center font-semibold text-lg justify-start px-2 gap-2 uppercase cursor-pointer disabled:cursor-not-allowed disabled:text-muted-foreground hover:bg-foreground/10 active:text-white"
       onClick={() => onChange?.(!value)}
       disabled={locked}
     >

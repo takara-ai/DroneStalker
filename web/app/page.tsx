@@ -8,8 +8,11 @@ export default function Home() {
     <div className="flex h-full w-full items-center justify-center p-8">
       <div className="flex flex-col gap-2 items-center justify-center">
         <h1 className="text-2xl font-bold">Disclaimer</h1>
-        <p className="text-sm">
-          This is best experienced with audio ON and fullscreen mode
+        <p className="text-sm max-w-xs text-center">
+          For the best experience, please turn on{" "}
+          <span className="font-bold text-white">AUDIO</span> and use{" "}
+          <span className="font-bold text-white">FULLSCREEN MODE</span>. Mobile
+          devices are not supported.
         </p>
         <Button
           className="mt-4"

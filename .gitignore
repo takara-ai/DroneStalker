@@ -1,4 +1,12 @@
 data/**
-
 !data/README.md
+
 .DS_Store
+*.zip
+*.csv
+yolo/output_images
+__pycache__/*
+yolo/.venv
+yolo/data_yolo/*
+yolo/__pycache__/*
+yolo/output.mp4
