@@ -8,7 +8,7 @@ export function Tts() {
 
   useEffect(() => {
     const processQueue = async () => {
-      const text = popFromTtsQueue();
+      const text = popFromTtsQueue()?.toUpperCase();
       if (!text) return;
 
       try {
