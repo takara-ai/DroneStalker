@@ -70,6 +70,8 @@ export default function TextingChat() {
   const prevScenarioStateRef = useRef<string>(scenarioState);
   // Track which messages have been added to TTS queue
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
+  // Track last processed message to detect when streaming completes
+  const lastMessageRef = useRef<string>("");
 
   // Initialize scenario: send initial message to Commander on mount
   useEffect(() => {
@@ -93,32 +95,44 @@ export default function TextingChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
-  // Add new commander messages to TTS queue
+  // Add new commander messages to TTS queue (only when message is complete)
   useEffect(() => {
-    messages.forEach((message) => {
-      // Only process assistant (commander) messages
-      if (message.role === "assistant") {
-        // Skip if we've already processed this message
-        if (processedMessageIdsRef.current.has(message.id)) {
-          return;
-        }
+    // Only process when not streaming to avoid partial messages
+    if (status === "streaming") {
+      return;
+    }
 
-        // Extract text from message parts
-        const textParts = message.parts
-          .filter((part) => part.type === "text")
-          .map((part) => part.text);
+    // Get the last assistant message
+    const assistantMessages = messages.filter((m) => m.role === "assistant");
+    if (assistantMessages.length === 0) return;
 
-        if (textParts.length > 0) {
-          const fullText = textParts.join("");
-          // Only add non-empty messages (skip the "*action taken*" type messages)
-          if (fullText.trim() && !fullText.trim().startsWith("*")) {
-            addToTtsQueue(fullText);
-            processedMessageIdsRef.current.add(message.id);
-          }
-        }
-      }
-    });
-  }, [messages, addToTtsQueue]);
+    const lastMessage = assistantMessages[assistantMessages.length - 1];
+    const messageId = lastMessage.id;
+
+    // Skip if already processed
+    if (processedMessageIdsRef.current.has(messageId)) {
+      return;
+    }
+
+    // Extract text from message parts
+    const textParts = lastMessage.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text);
+
+    if (textParts.length === 0) return;
+
+    const fullText = textParts.join("");
+
+    // Skip empty or action messages
+    if (!fullText.trim() || fullText.trim().startsWith("*")) {
+      return;
+    }
+
+    // Add to queue only when message is complete
+    addToTtsQueue(fullText);
+    processedMessageIdsRef.current.add(messageId);
+    lastMessageRef.current = fullText;
+  }, [messages, addToTtsQueue, status]);
 
   // Automatically send a message when scenario state changes (to trigger AI response)
   useEffect(() => {
@@ -230,23 +244,38 @@ export default function TextingChat() {
     <div className="border-4 p-2 flex flex-col gap-2 closed" id="chat">
       <Tts />
       <div className="overflow-y-auto flex-1">
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={cn(
-              m.role === "assistant"
-                ? "text-foreground"
-                : "text-muted-foreground"
-            )}
-          >
-            {m.role === "user" ? "YOU" : "GENERAL"}:{" "}
-            {m.parts
-              .filter((part) => part.type === "text")
-              .map((part, i) => (
-                <span key={i}>{part.text}</span>
-              ))}
-          </div>
-        ))}
+        {(() => {
+          // Deduplicate messages by ID, keeping the last occurrence
+          const seen = new Set<string>();
+          const uniqueMessages: typeof messages = [];
+
+          // Process in reverse to keep the last occurrence of each ID
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (!seen.has(msg.id)) {
+              seen.add(msg.id);
+              uniqueMessages.unshift(msg);
+            }
+          }
+
+          return uniqueMessages.map((m, index) => (
+            <div
+              key={`${m.id}-${index}`}
+              className={cn(
+                m.role === "assistant"
+                  ? "text-foreground"
+                  : "text-muted-foreground"
+              )}
+            >
+              {m.role === "user" ? "YOU" : "GENERAL"}:{" "}
+              {m.parts
+                .filter((part) => part.type === "text")
+                .map((part, i) => (
+                  <span key={`${m.id}-part-${i}`}>{part.text}</span>
+                ))}
+            </div>
+          ));
+        })()}
         {(status === "submitted" || status === "streaming") && <div>...</div>}
         {status === "error" && (
           <div className="text-destructive">Error /!\ Check console /!\</div>

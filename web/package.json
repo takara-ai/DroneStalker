@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/google": "^2.0.32",
     "@ai-sdk/react": "^2.0.93",
+    "@elevenlabs/react": "^0.11.0",
     "@nanostores/react": "ai/react",
     "@openrouter/ai-sdk-provider": "^1.2.3",
     "@radix-ui/react-slot": "^1.2.4",
