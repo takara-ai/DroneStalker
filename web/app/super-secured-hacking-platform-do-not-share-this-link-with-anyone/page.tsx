@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { openPanel } from "@/lib/open-animation";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import CommanderVideo from "./commander-video";
 import Controls from "./controls";
 import Code from "./main-panel/code";
@@ -17,9 +17,7 @@ import { codes } from "./main-panel/codes";
 export default function Page() {
   const tab = useStore((state) => state.tab);
   const setTab = useStore((state) => state.setTab);
-  const unlockedCode = useStore((state) => state.unlockedCode);
   const unlockedCredits = useStore((state) => state.unlockedCredits);
-  const scenarioState = useStore((state) => state.scenarioState);
   const setScenarioState = useStore((state) => state.setScenarioState);
   const setUnlockedMotion = useStore((state) => state.setUnlockedMotion);
   const setUnlockedTracking = useStore((state) => state.setUnlockedTracking);
@@ -27,6 +25,7 @@ export default function Page() {
     (state) => state.setUnlockedMotionPrediction
   );
   const triggerAction = useStore((state) => state.triggerAction);
+  const codeStates = useStore((state) => state.codeStates);
 
   // Note: State progression logic is handled in store setters (setTab, setActiveMotionDetection, setActiveTracking)
   // State transitions triggered by AI tool calls are handled in texting-chat.tsx
@@ -35,32 +34,21 @@ export default function Page() {
   // Note: positionPredictionComplete → success transition is handled in texting-chat.tsx
   // when AI unlocks credits to prevent loops
 
-  // Determine which code to show based on scenario state
-  const currentCode = useMemo(() => {
-    if (scenarioState === "firstCode") {
-      return codes.motionDetection;
-    } else if (scenarioState === "tracking") {
-      return codes.tracking;
-    } else if (scenarioState === "positionPrediction") {
-      return codes.positionPrediction;
-    }
-    // Default to motion detection code
-    return codes.motionDetection;
-  }, [scenarioState]);
-
   // Handle code completion
-  const handleCodeComplete = () => {
-    if (scenarioState === "firstCode") {
+  const handleCodeComplete = (
+    codeKey: "motionDetection" | "tracking" | "positionPrediction"
+  ) => {
+    if (codeKey === "motionDetection") {
       // Motion detection code completed - automatically unlock motion detection
       setUnlockedMotion(true);
       setScenarioState("motionDetection");
       triggerAction("completed motion detection code");
-    } else if (scenarioState === "tracking") {
+    } else if (codeKey === "tracking") {
       // Tracking code completed - automatically unlock tracking
       setUnlockedTracking(true);
       setScenarioState("trackingComplete");
       triggerAction("completed tracking code");
-    } else if (scenarioState === "positionPrediction") {
+    } else if (codeKey === "positionPrediction") {
       // Position prediction code completed - automatically unlock motion prediction
       setUnlockedMotionPrediction(true);
       setScenarioState("positionPredictionComplete");
@@ -108,15 +96,43 @@ export default function Page() {
             Camera view
           </Button>
           <Button
-            onClick={() => setTab("code")}
+            onClick={() => setTab("motionDetection")}
             className={cn(
               "uppercase",
-              tab === "code" && "bg-foreground text-background"
+              tab === "motionDetection" && "bg-foreground text-background"
             )}
-            disabled={!unlockedCode}
+            disabled={!codeStates.motionDetection.unlocked}
           >
-            {unlockedCode ? "Code" : "???"}
-            {!unlockedCode && <span className="text-destructive">locked</span>}
+            {codeStates.motionDetection.unlocked ? "motion.py" : "???"}
+            {!codeStates.motionDetection.unlocked && (
+              <span className="text-destructive">locked</span>
+            )}
+          </Button>
+          <Button
+            onClick={() => setTab("tracking")}
+            className={cn(
+              "uppercase",
+              tab === "tracking" && "bg-foreground text-background"
+            )}
+            disabled={!codeStates.tracking.unlocked}
+          >
+            {codeStates.tracking.unlocked ? "tracking.py" : "???"}
+            {!codeStates.tracking.unlocked && (
+              <span className="text-destructive">locked</span>
+            )}
+          </Button>
+          <Button
+            onClick={() => setTab("positionPrediction")}
+            className={cn(
+              "uppercase",
+              tab === "positionPrediction" && "bg-foreground text-background"
+            )}
+            disabled={!codeStates.positionPrediction.unlocked}
+          >
+            {codeStates.positionPrediction.unlocked ? "prediction.py" : "???"}
+            {!codeStates.positionPrediction.unlocked && (
+              <span className="text-destructive">locked</span>
+            )}
           </Button>
           <Button
             onClick={() => setTab("credits")}
@@ -133,11 +149,28 @@ export default function Page() {
           </Button>
         </nav>
         {tab === "video" && <VideoFeed />}
-        {tab === "code" && (
+        {tab === "motionDetection" && (
           <Code
-            code={currentCode.code}
-            source={currentCode.source}
-            onComplete={handleCodeComplete}
+            codeKey="motionDetection"
+            code={codes.motionDetection.code}
+            source={codes.motionDetection.source}
+            onComplete={() => handleCodeComplete("motionDetection")}
+          />
+        )}
+        {tab === "tracking" && (
+          <Code
+            codeKey="tracking"
+            code={codes.tracking.code}
+            source={codes.tracking.source}
+            onComplete={() => handleCodeComplete("tracking")}
+          />
+        )}
+        {tab === "positionPrediction" && (
+          <Code
+            codeKey="positionPrediction"
+            code={codes.positionPrediction.code}
+            source={codes.positionPrediction.source}
+            onComplete={() => handleCodeComplete("positionPrediction")}
           />
         )}
         {tab === "credits" && <Credits />}

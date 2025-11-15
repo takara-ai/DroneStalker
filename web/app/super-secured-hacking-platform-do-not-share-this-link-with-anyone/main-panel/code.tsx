@@ -30,26 +30,29 @@ const SPEED_THRESHOLDS = [
 const SLIDING_WINDOW_SIZE = 10; // Track last 10 key presses
 const INACTIVITY_THRESHOLD = 500; // Reset to slowest speed after 500ms of inactivity
 
+type CodeKey = "motionDetection" | "tracking" | "positionPrediction";
+
 interface CodeProps {
+  codeKey: CodeKey;
   code: string;
   source: string;
   onComplete?: () => void;
 }
 
 export default function Code({
+  codeKey,
   code: targetCode,
   source,
   onComplete,
 }: CodeProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const {
-    codeProgress,
-    codeTypedCode,
-    setTypingSpeedIndex,
-    setCodeProgress,
-    setCodeTypedCode,
-  } = useStore();
+  const codeState = useStore((state) => state.codeStates[codeKey]);
+  const { setCodeTypingSpeedIndex, setCodeProgress, setCodeTypedCode } =
+    useStore();
+
+  const codeProgress = codeState.codeProgress;
+  const codeTypedCode = codeState.codeTypedCode;
 
   // Initialize currentPositionRef from stored typed code
   const currentPositionRef = useRef(codeTypedCode.length);
@@ -62,8 +65,8 @@ export default function Code({
     if (previousTargetCodeRef.current !== targetCode) {
       previousTargetCodeRef.current = targetCode;
       currentPositionRef.current = 0;
-      setCodeTypedCode("");
-      setCodeProgress(0);
+      setCodeTypedCode(codeKey, "");
+      setCodeProgress(codeKey, 0);
       hasCompletedRef.current = false; // Reset completion flag
       return;
     }
@@ -72,13 +75,13 @@ export default function Code({
     // If not, reset (this handles edge cases where state might get corrupted)
     if (codeTypedCode && !targetCode.startsWith(codeTypedCode)) {
       currentPositionRef.current = 0;
-      setCodeTypedCode("");
-      setCodeProgress(0);
+      setCodeTypedCode(codeKey, "");
+      setCodeProgress(codeKey, 0);
       hasCompletedRef.current = false; // Reset completion flag
     } else {
       currentPositionRef.current = codeTypedCode.length;
     }
-  }, [targetCode, codeTypedCode, setCodeTypedCode, setCodeProgress]);
+  }, [targetCode, codeTypedCode, setCodeTypedCode, setCodeProgress, codeKey]);
 
   // Sync currentPositionRef when codeTypedCode changes from outside
   useEffect(() => {
@@ -174,11 +177,11 @@ export default function Code({
   useEffect(() => {
     const interval = setInterval(() => {
       const speedInfo = getSpeedInfo();
-      setTypingSpeedIndex(speedInfo.speedIndex);
+      setCodeTypingSpeedIndex(codeKey, speedInfo.speedIndex);
     }, 100); // Check every 100ms
 
     return () => clearInterval(interval);
-  }, [getSpeedInfo, setTypingSpeedIndex]);
+  }, [getSpeedInfo, setCodeTypingSpeedIndex, codeKey]);
 
   // Handle keyboard input - only prevent default for keys we handle
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -206,9 +209,9 @@ export default function Code({
       if (currentPositionRef.current > 0) {
         currentPositionRef.current--;
         const newTypedCode = targetCode.slice(0, currentPositionRef.current);
-        setCodeTypedCode(newTypedCode);
+        setCodeTypedCode(codeKey, newTypedCode);
         const progress = (currentPositionRef.current / targetCode.length) * 100;
-        setCodeProgress(Math.min(100, Math.round(progress)));
+        setCodeProgress(codeKey, Math.min(100, Math.round(progress)));
       }
       return;
     }
@@ -236,7 +239,7 @@ export default function Code({
       const speedInfo = getSpeedInfo();
       charsToAdvance = speedInfo.charsToAdvance;
       // Update the speed index in the store
-      setTypingSpeedIndex(speedInfo.speedIndex);
+      setCodeTypingSpeedIndex(codeKey, speedInfo.speedIndex);
     } else {
       return;
     }
@@ -257,12 +260,12 @@ export default function Code({
     );
     currentPositionRef.current = newPosition;
     const newTypedCode = targetCode.slice(0, currentPositionRef.current);
-    setCodeTypedCode(newTypedCode);
+    setCodeTypedCode(codeKey, newTypedCode);
 
     // Update progress
     const progress = (currentPositionRef.current / targetCode.length) * 100;
     const roundedProgress = Math.min(100, Math.round(progress));
-    setCodeProgress(roundedProgress);
+    setCodeProgress(codeKey, roundedProgress);
 
     // Trigger completion callback when reaching 100%
     if (roundedProgress >= 100 && !hasCompletedRef.current && onComplete) {

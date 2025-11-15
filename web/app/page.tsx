@@ -11,7 +11,8 @@ export default function Home() {
         <p className="text-sm max-w-xs text-center">
           For the best experience, please turn on{" "}
           <span className="font-bold text-white">AUDIO</span> and use{" "}
-          <span className="font-bold text-white">FULLSCREEN MODE</span>.
+          <span className="font-bold text-white">FULLSCREEN MODE</span>. Mobile
+          devices are not supported.
         </p>
         <Button
           className="mt-4"

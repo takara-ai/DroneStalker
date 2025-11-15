@@ -30,11 +30,17 @@ export default function TextingChat() {
     addToTtsQueue,
     setSendMessageCallback,
   } = useStore();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
     onError: (error) => {
       console.error("Chat error:", error);
+    },
+    onFinish: () => {
+      if (scenarioState === "intro") {
+        setUnlockedCamera(true);
+      }
     },
     onToolCall: async (toolCall) => {
       const toolName = toolCall.toolCall.toolName;
@@ -66,6 +72,11 @@ export default function TextingChat() {
     },
   });
 
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
   // Track which messages have been added to TTS queue
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
 
@@ -217,7 +228,7 @@ export default function TextingChat() {
   return (
     <div className="border-4 p-2 flex flex-col gap-2 closed" id="chat">
       <Tts />
-      <div className="overflow-y-auto flex-1">
+      <div ref={scrollRef} className="overflow-y-auto flex-1">
         {messages.map((m) => (
           <div
             key={m.id}

@@ -5,7 +5,18 @@
 import { useStore } from "@/lib/store";
 
 export default function You() {
-  const { typingSpeedIndex } = useStore();
+  const tab = useStore((state) => state.tab);
+  const codeStates = useStore((state) => state.codeStates);
+
+  // Get typing speed index from the active code tab, or default to 0
+  const typingSpeedIndex =
+    tab === "motionDetection"
+      ? codeStates.motionDetection.typingSpeedIndex
+      : tab === "tracking"
+      ? codeStates.tracking.typingSpeedIndex
+      : tab === "positionPrediction"
+      ? codeStates.positionPrediction.typingSpeedIndex
+      : 0;
 
   // Map speed index (0-5) to image number
   // Speed index 0 = slowest, 5 = fastest

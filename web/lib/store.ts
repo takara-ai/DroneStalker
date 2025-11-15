@@ -1,5 +1,14 @@
 import { create } from "zustand";
 
+type CodeKey = "motionDetection" | "tracking" | "positionPrediction";
+
+type CodeState = {
+  unlocked: boolean;
+  typingSpeedIndex: number; // 0-5, where 0 is slowest and 5 is fastest
+  codeProgress: number; // 0-100, progress of code typing
+  codeTypedCode: string; // The actual typed code string
+};
+
 type StoreTypes = {
   scenarioState: keyof typeof scenarioStates;
   unlockedCamera: boolean;
@@ -10,16 +19,19 @@ type StoreTypes = {
   unlockedMotionPrediction: boolean;
   unlockedCode: boolean;
   unlockedCredits: boolean;
-  tab: "video" | "code" | "credits";
+  tab:
+    | "video"
+    | "motionDetection"
+    | "tracking"
+    | "positionPrediction"
+    | "credits";
   activeCamera: boolean;
   activeMotionDetection: boolean;
   activeFire: boolean;
   activeTracking: boolean;
   activeAutoFire: boolean;
   activeMotionPrediction: boolean;
-  typingSpeedIndex: number; // 0-5, where 0 is slowest and 5 is fastest
-  codeProgress: number; // 0-100, progress of code typing
-  codeTypedCode: string; // The actual typed code string
+  codeStates: Record<CodeKey, CodeState>;
   ttsQueue: string[]; // Queue of messages from commander to be spoken via text-to-speech
   setScenarioState: (value: keyof typeof scenarioStates) => void;
   setUnlockedCamera: (value: boolean) => void;
@@ -30,16 +42,24 @@ type StoreTypes = {
   setUnlockedMotionPrediction: (value: boolean) => void;
   setUnlockedCode: (value: boolean) => void;
   setUnlockedCredits: (value: boolean) => void;
-  setTab: (value: "video" | "code" | "credits") => void;
+  setTab: (
+    value:
+      | "video"
+      | "motionDetection"
+      | "tracking"
+      | "positionPrediction"
+      | "credits"
+  ) => void;
   setActiveCamera: (value: boolean) => void;
   setActiveMotionDetection: (value: boolean) => void;
   setActiveFire: (value: boolean) => void;
   setActiveTracking: (value: boolean) => void;
   setActiveAutoFire: (value: boolean) => void;
   setActiveMotionPrediction: (value: boolean) => void;
-  setTypingSpeedIndex: (value: number) => void;
-  setCodeProgress: (value: number) => void;
-  setCodeTypedCode: (value: string) => void;
+  setCodeUnlocked: (codeKey: CodeKey, value: boolean) => void;
+  setCodeTypingSpeedIndex: (codeKey: CodeKey, value: number) => void;
+  setCodeProgress: (codeKey: CodeKey, value: number) => void;
+  setCodeTypedCode: (codeKey: CodeKey, value: string) => void;
   addToTtsQueue: (message: string) => void;
   popFromTtsQueue: () => string | undefined;
   sendMessageCallback: ((action: string) => void) | null;
@@ -72,6 +92,13 @@ export const scenarioStates = {
     "The user has successfully intercepted the drone. Congratulate them formally and use the unlockCredits tool to unlock the Credits tab as a reward.",
 };
 
+const initialCodeState: CodeState = {
+  unlocked: false,
+  typingSpeedIndex: 0, // Start at slowest speed
+  codeProgress: 0, // Start at 0% progress
+  codeTypedCode: "", // Start with empty code
+};
+
 export const useStore = create<StoreTypes>((set) => ({
   scenarioState: "intro",
   unlockedCamera: false,
@@ -89,9 +116,11 @@ export const useStore = create<StoreTypes>((set) => ({
   activeTracking: false,
   activeAutoFire: false,
   activeMotionPrediction: false,
-  typingSpeedIndex: 0, // Start at slowest speed
-  codeProgress: 0, // Start at 0% progress
-  codeTypedCode: "", // Start with empty code
+  codeStates: {
+    motionDetection: { ...initialCodeState },
+    tracking: { ...initialCodeState },
+    positionPrediction: { ...initialCodeState },
+  },
   ttsQueue: [], // Start with empty TTS queue
   setScenarioState: (value) => set({ scenarioState: value }),
   setUnlockedCamera: (value) => set({ unlockedCamera: value }),
@@ -119,6 +148,14 @@ export const useStore = create<StoreTypes>((set) => ({
         return {
           unlockedCode: value,
           scenarioState: "codeUnlocked" as const,
+          // Unlock motionDetection code when code tab is unlocked
+          codeStates: {
+            ...state.codeStates,
+            motionDetection: {
+              ...state.codeStates.motionDetection,
+              unlocked: true,
+            },
+          },
         };
       }
       return { unlockedCode: value };
@@ -138,11 +175,12 @@ export const useStore = create<StoreTypes>((set) => ({
   },
   setTab: (value) => {
     set((state) => {
-      // codeUnlocked → firstCode: When Code tab is opened
+      // codeUnlocked → firstCode: When motionDetection code tab is opened
       if (
-        value === "code" &&
+        value === "motionDetection" &&
         state.scenarioState === "codeUnlocked" &&
-        state.unlockedCode
+        state.unlockedCode &&
+        state.codeStates.motionDetection.unlocked
       ) {
         setTimeout(() => {
           useStore.getState().triggerAction("opened the code tab");
@@ -151,6 +189,22 @@ export const useStore = create<StoreTypes>((set) => ({
           tab: value,
           scenarioState: "firstCode",
         };
+      }
+      // tracking → tracking: When tracking code tab is opened
+      if (
+        value === "tracking" &&
+        state.scenarioState === "tracking" &&
+        state.codeStates.tracking.unlocked
+      ) {
+        return { tab: value };
+      }
+      // positionPrediction → positionPrediction: When positionPrediction code tab is opened
+      if (
+        value === "positionPrediction" &&
+        state.scenarioState === "positionPrediction" &&
+        state.codeStates.positionPrediction.unlocked
+      ) {
+        return { tab: value };
       }
       return { tab: value };
     });
@@ -187,12 +241,22 @@ export const useStore = create<StoreTypes>((set) => ({
           activeMotionDetection: value,
           activeCamera: true,
           scenarioState: "tracking",
+          tab: "video",
+          // Unlock tracking code when motion detection is enabled
+          codeStates: {
+            ...state.codeStates,
+            tracking: {
+              ...state.codeStates.tracking,
+              unlocked: true,
+            },
+          },
         };
       }
       if (value) {
         return {
           activeMotionDetection: value,
           activeCamera: true,
+          tab: "video",
         };
       }
       return {
@@ -210,7 +274,16 @@ export const useStore = create<StoreTypes>((set) => ({
         }, 0);
         return {
           activeTracking: value,
+          tab: "video",
           scenarioState: "positionPrediction",
+          // Unlock positionPrediction code when tracking is enabled
+          codeStates: {
+            ...state.codeStates,
+            positionPrediction: {
+              ...state.codeStates.positionPrediction,
+              unlocked: true,
+            },
+          },
         };
       }
       return { activeTracking: value };
@@ -218,9 +291,48 @@ export const useStore = create<StoreTypes>((set) => ({
   },
   setActiveAutoFire: (value) => set({ activeAutoFire: value }),
   setActiveMotionPrediction: (value) => set({ activeMotionPrediction: value }),
-  setTypingSpeedIndex: (value) => set({ typingSpeedIndex: value }),
-  setCodeProgress: (value) => set({ codeProgress: value }),
-  setCodeTypedCode: (value) => set({ codeTypedCode: value }),
+  setCodeUnlocked: (codeKey, value) =>
+    set((state) => ({
+      codeStates: {
+        ...state.codeStates,
+        [codeKey]: {
+          ...state.codeStates[codeKey],
+          unlocked: value,
+        },
+      },
+    })),
+  setCodeTypingSpeedIndex: (codeKey, value) =>
+    set((state) => ({
+      codeStates: {
+        ...state.codeStates,
+        [codeKey]: {
+          ...state.codeStates[codeKey],
+          typingSpeedIndex: Number.isNaN(value)
+            ? 0
+            : Math.max(0, Math.min(5, value)),
+        },
+      },
+    })),
+  setCodeProgress: (codeKey, value) =>
+    set((state) => ({
+      codeStates: {
+        ...state.codeStates,
+        [codeKey]: {
+          ...state.codeStates[codeKey],
+          codeProgress: value,
+        },
+      },
+    })),
+  setCodeTypedCode: (codeKey, value) =>
+    set((state) => ({
+      codeStates: {
+        ...state.codeStates,
+        [codeKey]: {
+          ...state.codeStates[codeKey],
+          codeTypedCode: value,
+        },
+      },
+    })),
   addToTtsQueue: (message) =>
     set((state) => ({
       ttsQueue: [...state.ttsQueue, message],
