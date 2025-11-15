@@ -1,0 +1,1 @@
+fan speed estimation. vibed w/ codex

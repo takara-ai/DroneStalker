@@ -1,0 +1,13 @@
+[project]
+name = "fan-speed"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "evio",
+    "gdown>=5.2.0",
+]
+
+[tool.uv.sources]
+evio = { git = "https://github.com/ahtihelminen/evio" }
