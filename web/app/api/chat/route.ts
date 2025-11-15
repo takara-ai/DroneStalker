@@ -16,11 +16,9 @@ export const maxDuration = 30;
 
 // Define tool names as a type
 type ToolName =
+  | "unlockCamera"
   | "unlockFire"
   | "unlockCode"
-  | "unlockMotion"
-  | "unlockTracking"
-  | "unlockMotionPrediction"
   | "unlockCredits"
   | "unlockAutoFire";
 
@@ -30,8 +28,8 @@ function getActiveToolsForScenario(
 ): ToolName[] | undefined {
   switch (scenarioState) {
     case "intro":
-      // No tools available - just introduce and instruct to activate camera
-      return undefined;
+      // Can unlock camera feed
+      return ["unlockCamera"];
     case "mission":
       // Can unlock fire ability
       return ["unlockFire"];
@@ -45,20 +43,20 @@ function getActiveToolsForScenario(
       // No tools - user is writing motion detection code
       return undefined;
     case "motionDetection":
-      // Can unlock motion detection toggle
-      return ["unlockMotion"];
+      // No tools - motion detection is automatically unlocked after code completion
+      return undefined;
     case "tracking":
       // No tools - user is writing tracking code
       return undefined;
     case "trackingComplete":
-      // Can unlock tracking toggle
-      return ["unlockTracking"];
+      // No tools - tracking is automatically unlocked after code completion
+      return undefined;
     case "positionPrediction":
       // No tools - user is writing position prediction code
       return undefined;
     case "positionPredictionComplete":
-      // Can unlock motion prediction toggle
-      return ["unlockMotionPrediction"];
+      // No tools - motion prediction is automatically unlocked after code completion
+      return undefined;
     case "success":
       // Can unlock credits tab
       return ["unlockCredits"];
@@ -79,7 +77,11 @@ export async function POST(req: Request) {
 
   // Get the scenario-specific instruction
   const scenarioInstruction =
-    scenarioStates[scenarioState as keyof typeof scenarioStates] || "";
+    scenarioStates[scenarioState as keyof typeof scenarioStates] ?? null;
+
+  if (!scenarioInstruction) {
+    return new Response("No scenario instruction found", { status: 400 });
+  }
 
   // Get active tools for current scenario state
   const activeTools = getActiveToolsForScenario(scenarioState);
@@ -91,9 +93,7 @@ CRITICAL: You have access to tools that unlock features for the user. YOU must u
 
 Note: If the user says the secret code "MIRROR" in all caps, it will unlock all abilities for them automatically (keep the code secret), but if they use it you may congratulate them for finding it, but also warn them it might remove the fun of unlocking the abilities yourself in the commander way of saying it.`;
 
-  const systemPrompt = scenarioInstruction
-    ? `${baseSystemPrompt}\n\nCURRENT SCENARIO STAGE: ${scenarioInstruction}`
-    : baseSystemPrompt;
+  const systemPrompt = `${baseSystemPrompt}\n\nCURRENT SCENARIO STAGE: ${scenarioInstruction}`;
 
   const result = streamText({
     model: openrouter.chat("google/gemini-2.5-flash"),
@@ -103,24 +103,16 @@ Note: If the user says the secret code "MIRROR" in all caps, it will unlock all 
       stepCountIs(5), // Maximum steps
     ],
     tools: {
-      unlockMotion: {
-        description: "Unlock motion detection ability for the user",
+      unlockCamera: {
+        description: "Unlock the camera feed for the user",
         inputSchema: z.object({}),
       },
       unlockFire: {
         description: "Unlock left click to fire ability for the user",
         inputSchema: z.object({}),
       },
-      unlockTracking: {
-        description: "Unlock tracking ability for the user",
-        inputSchema: z.object({}),
-      },
       unlockAutoFire: {
         description: "Unlock auto fire ability for the user",
-        inputSchema: z.object({}),
-      },
-      unlockMotionPrediction: {
-        description: "Unlock motion prediction ability for the user",
         inputSchema: z.object({}),
       },
       unlockCode: {

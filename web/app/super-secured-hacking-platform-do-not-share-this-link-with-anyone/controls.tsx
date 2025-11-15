@@ -4,6 +4,7 @@ import { useStore } from "@/lib/store";
 
 export default function Controls() {
   const {
+    unlockedCamera,
     unlockedMotion,
     unlockedFire,
     unlockedTracking,
@@ -29,7 +30,7 @@ export default function Controls() {
         label="camera feed"
         value={activeCamera}
         onChange={setActiveCamera}
-        locked={false}
+        locked={!unlockedCamera}
       />
       <ToggleButton
         label="motion detection"
