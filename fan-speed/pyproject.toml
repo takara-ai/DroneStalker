@@ -1,0 +1,16 @@
+[project]
+name = "fan-speed"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "evio",
+    "gdown>=5.2.0",
+    "matplotlib>=3.10.7",
+    "opencv-python>=4.11.0.86",
+    "scipy>=1.16.3",
+]
+
+[tool.uv.sources]
+evio = { git = "https://github.com/ahtihelminen/evio" }
