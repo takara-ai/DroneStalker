@@ -24,6 +24,7 @@ export default function VideoFeed() {
   const scenarioState = useStore((state) => state.scenarioState);
   const triggerAction = useStore((state) => state.triggerAction);
   const activeFire = useStore((state) => state.activeFire);
+  const activeAutoFire = useStore((state) => state.activeAutoFire);
   const activeLockTarget = useStore((state) => state.activeLockTarget);
   const dataId = useStore((state) => state.dataId);
   const unlockedCode = useStore((state) => state.unlockedCode);
@@ -42,6 +43,7 @@ export default function VideoFeed() {
     width: number;
     height: number;
   } | null>(null);
+  const normalizedPositionRef = useRef<NormalizedPosition | null>(null);
 
   // Load coordinates on mount and when dataId changes
   useEffect(() => {
@@ -141,6 +143,7 @@ export default function VideoFeed() {
             containerHeight
           );
           setNormalizedPosition(normalized);
+          normalizedPositionRef.current = normalized;
         }
       }
     };
@@ -191,6 +194,50 @@ export default function VideoFeed() {
       }, 0);
     }
   };
+
+  // Autofire: fire projectiles every 0.2 seconds at the drone's center position
+  useEffect(() => {
+    if (!activeAutoFire || !projectileCanvasRef.current) {
+      return;
+    }
+
+    // Fire immediately on first enable if we have a position
+    const initialPosition = normalizedPositionRef.current;
+    if (initialPosition) {
+      const centerX = initialPosition.x + initialPosition.width / 2;
+      const centerY = initialPosition.y + initialPosition.height / 2;
+      const targetXPercent = centerX * 100;
+      const targetYPercent = centerY * 100;
+      projectileCanvasRef.current.addProjectile(targetXPercent, targetYPercent);
+    }
+
+    // Set up interval to fire every 0.2 seconds (200ms)
+    const intervalId = setInterval(() => {
+      if (!projectileCanvasRef.current) {
+        return;
+      }
+
+      // Get latest position from ref (always current)
+      const currentPosition = normalizedPositionRef.current;
+      if (!currentPosition) {
+        return;
+      }
+
+      // Calculate center position
+      const centerX = currentPosition.x + currentPosition.width / 2;
+      const centerY = currentPosition.y + currentPosition.height / 2;
+
+      // Convert to percentages (0-100)
+      const targetXPercent = centerX * 100;
+      const targetYPercent = centerY * 100;
+
+      projectileCanvasRef.current.addProjectile(targetXPercent, targetYPercent);
+    }, 100); // 0.2 seconds = 200ms
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [activeAutoFire, activeFire]);
 
   // Update container size when it changes
   useEffect(() => {
@@ -382,7 +429,7 @@ export default function VideoFeed() {
                 )}
               </>
             )}
-          {activeCamera && activeFire && (
+          {activeCamera && (activeFire || activeAutoFire) && (
             <ProjectileCanvas
               onMiss={handleProjectileMiss}
               ref={projectileCanvasRef}

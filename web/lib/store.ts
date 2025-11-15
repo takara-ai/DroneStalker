@@ -35,6 +35,7 @@ type StoreTypes = {
   activeMotionPrediction: boolean;
   activeLockTarget: boolean;
   droneHealth: number; // 0-100, drone health percentage
+  hasWin: boolean; // True when player has won (drone health reached 0)
   codeStates: Record<CodeKey, CodeState>;
   ttsQueue: string[]; // Queue of messages from commander to be spoken via text-to-speech
   setScenarioState: (value: keyof typeof scenarioStates) => void;
@@ -63,6 +64,7 @@ type StoreTypes = {
   setActiveMotionPrediction: (value: boolean) => void;
   setActiveLockTarget: (value: boolean) => void;
   setDroneHealth: (value: number) => void;
+  setHasWin: (value: boolean) => void;
   setCodeUnlocked: (codeKey: CodeKey, value: boolean) => void;
   setCodeTypingSpeedIndex: (codeKey: CodeKey, value: number) => void;
   setCodeProgress: (codeKey: CodeKey, value: number) => void;
@@ -125,6 +127,7 @@ export const useStore = create<StoreTypes>((set) => ({
   activeMotionPrediction: false,
   activeLockTarget: false,
   droneHealth: 100, // Start at full health
+  hasWin: false, // Start with no win
   codeStates: {
     motionDetection: { ...initialCodeState },
     tracking: { ...initialCodeState },
@@ -294,11 +297,33 @@ export const useStore = create<StoreTypes>((set) => ({
       set({ activeMotionPrediction: value, tab: "video" });
     } else set({ activeMotionPrediction: value });
   },
-  setActiveLockTarget: (value) => set({ activeLockTarget: value }),
+  setActiveLockTarget: (value) =>
+    set(() => {
+      if (value) {
+        // Also activate tracking when enabling lock target
+        return {
+          activeLockTarget: value,
+          activeTracking: true,
+        };
+      }
+      return { activeLockTarget: value };
+    }),
   setDroneHealth: (value) =>
     set((state) => {
       const newHealth = Math.max(0, Math.min(100, value));
-      // Unlock credits when drone health reaches 0
+      // Win condition: when drone health reaches 0
+      if (newHealth === 0 && !state.hasWin) {
+        // Highlight credits tab on win
+        setTimeout(() => {
+          highlightId("tab-credits");
+        }, 0);
+        return {
+          droneHealth: newHealth,
+          hasWin: true,
+          unlockedCredits: true,
+        };
+      }
+      // Unlock credits when drone health reaches 0 (backward compatibility)
       if (newHealth === 0 && !state.unlockedCredits) {
         return {
           droneHealth: newHealth,
@@ -307,6 +332,7 @@ export const useStore = create<StoreTypes>((set) => ({
       }
       return { droneHealth: newHealth };
     }),
+  setHasWin: (value) => set({ hasWin: value }),
   setCodeUnlocked: (codeKey, value) =>
     set((state) => ({
       codeStates: {

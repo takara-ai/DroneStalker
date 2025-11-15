@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import type { NormalizedPosition } from "@/lib/drone-coordinates";
-import { useStore } from "@/lib/store";
+import { useStore, getStoreState } from "@/lib/store";
 
 interface Projectile {
   id: number;
@@ -44,6 +44,7 @@ const ProjectileCanvas = forwardRef<
   const fireSoundRef = useRef<HTMLAudioElement | null>(null);
   const hitSoundRef = useRef<HTMLAudioElement | null>(null);
   const droneHealth = useStore((state) => state.droneHealth);
+  const setDroneHealth = useStore((state) => state.setDroneHealth);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [mousePosition, setMousePosition] = useState<{
     x: number;
@@ -169,9 +170,13 @@ const ProjectileCanvas = forwardRef<
       }
 
       const startXPercent = 50; // Center horizontally
-      const startYPercent = 98; // Near bottom (98%)
-      const duration = 1500; // 1.5 seconds
-      const initialSize = 12;
+      const startYPercent = 110; // Near bottom (98%)
+      const duration = 1000; // 1 second
+      // Scale initial size based on canvas height to maintain consistent visual size
+      // Base size of ~1.5% of canvas height, with a minimum of 12px
+      const baseSize =
+        dimensions.height > 0 ? Math.max(12, dimensions.height * 0.015) : 12;
+      const initialSize = baseSize;
 
       const projectile: Projectile = {
         id: nextIdRef.current++,
@@ -186,7 +191,7 @@ const ProjectileCanvas = forwardRef<
 
       projectilesRef.current.push(projectile);
     },
-    []
+    [dimensions.height]
   );
 
   // Handle mouse clicks
@@ -195,11 +200,29 @@ const ProjectileCanvas = forwardRef<
       if (e.button === 0) {
         // Left click only
         const pos = calculateMousePosition(e.clientX, e.clientY);
-        if (pos && dimensions.width > 0 && dimensions.height > 0) {
-          // Convert to percentages (0-100)
-          const xPercent = (pos.x / dimensions.width) * 100;
-          const yPercent = (pos.y / dimensions.height) * 100;
-          addProjectile(xPercent, yPercent);
+        const canvas = canvasRef.current;
+        if (pos && canvas && dimensions.width > 0 && dimensions.height > 0) {
+          // Get canvas actual rendered size to match coordinate system
+          const canvasRect = canvas.getBoundingClientRect();
+          const viewport = document.getElementById("viewport");
+          if (viewport) {
+            const viewportRect = viewport.getBoundingClientRect();
+            const scale = viewportRect.width / 1920;
+            // Convert canvas dimensions to viewport coordinate space
+            const canvasWidth = canvasRect.width / scale;
+            const canvasHeight = canvasRect.height / scale;
+
+            // Convert to percentages (0-100) using the same coordinate system
+            const xPercent = Math.max(
+              0,
+              Math.min(100, (pos.x / canvasWidth) * 100)
+            );
+            const yPercent = Math.max(
+              0,
+              Math.min(100, (pos.y / canvasHeight) * 100)
+            );
+            addProjectile(xPercent, yPercent);
+          }
         }
       }
     },
@@ -234,15 +257,6 @@ const ProjectileCanvas = forwardRef<
         const elapsed = now - proj.startTime;
         const progress = Math.min(elapsed / proj.duration, 1);
 
-        // Remove if expired
-        if (progress >= 1) {
-          // If projectile expired without hitting, it's a miss
-          if (!proj.hitDetected && onMiss) {
-            onMiss();
-          }
-          return false;
-        }
-
         // Convert percentages to pixels for rendering
         const startX = (proj.startXPercent / 100) * dimensions.width;
         const startY = (proj.startYPercent / 100) * dimensions.height;
@@ -258,7 +272,8 @@ const ProjectileCanvas = forwardRef<
           Math.min(startY, targetY) -
           (arcHeightPercent / 100) * dimensions.height;
 
-        const t = progress;
+        // Use progress clamped to 1.0 to ensure exact target position when expired
+        const t = Math.min(progress, 1.0);
         const x =
           (1 - t) * (1 - t) * startX +
           2 * (1 - t) * t * controlX +
@@ -295,38 +310,74 @@ const ProjectileCanvas = forwardRef<
                 console.warn("Could not play hit sound:", error);
               });
             }
+            // Reduce drone health by 5 points per hit
+            const currentHealth = getStoreState().droneHealth;
+            setDroneHealth(Math.max(0, currentHealth - 5));
           }
         }
 
         // Calculate size (starts large, gets smaller)
-        const size = proj.initialSize * (1 - progress * 0.9); // Shrinks to 30% of original
+        // Clamp progress to 1.0 for size calculation to avoid negative size
+        const sizeProgress = Math.min(progress, 1.0);
+        const size = proj.initialSize * (1 - sizeProgress * 0.9); // Shrinks to 30% of original
 
-        // Draw projectile
+        // Draw projectile at exact position (even when expired, so it's visible at target)
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 100, 100, ${1 - progress * 0.5})`; // Fades out
+        ctx.fillStyle = `rgba(255, 100, 100, ${1 - sizeProgress * 0.5})`; // Fades out
         ctx.fill();
-        ctx.strokeStyle = `rgba(255, 200, 200, ${1 - progress * 0.5})`;
+        ctx.strokeStyle = `rgba(255, 200, 200, ${1 - sizeProgress * 0.5})`;
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        // Remove if expired (after drawing at exact target position)
+        if (progress >= 1) {
+          // If projectile expired without hitting, it's a miss
+          if (!proj.hitDetected) {
+            // Regenerate health on miss (more than hit damage to make misses bad)
+            const currentHealth = getStoreState().droneHealth;
+            setDroneHealth(Math.min(100, currentHealth + 8)); // 8 points regeneration (more than 5 damage)
+            if (onMiss) {
+              onMiss();
+            }
+          }
+          return false;
+        }
 
         return true;
       });
 
       // Draw debug mouse position as percentages
       if (mousePosition && dimensions.width > 0 && dimensions.height > 0) {
-        const percentX = (mousePosition.x / dimensions.width) * 100;
-        const percentY = (mousePosition.y / dimensions.height) * 100;
-        const text = `X: ${percentX.toFixed(1)}% Y: ${percentY.toFixed(1)}%`;
+        // Get canvas actual rendered size to match coordinate system
+        const canvasRect = canvas.getBoundingClientRect();
+        const viewport = document.getElementById("viewport");
+        if (viewport) {
+          const viewportRect = viewport.getBoundingClientRect();
+          const scale = viewportRect.width / 1920;
+          // Convert canvas dimensions to viewport coordinate space
+          const canvasWidth = canvasRect.width / scale;
+          const canvasHeight = canvasRect.height / scale;
 
-        // Draw background for text
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        ctx.fillRect(10, dimensions.height - 40, 190, 30);
+          const percentX = Math.max(
+            0,
+            Math.min(100, (mousePosition.x / canvasWidth) * 100)
+          );
+          const percentY = Math.max(
+            0,
+            Math.min(100, (mousePosition.y / canvasHeight) * 100)
+          );
+          const text = `X: ${percentX.toFixed(1)}% Y: ${percentY.toFixed(1)}%`;
 
-        // Draw text
-        ctx.fillStyle = "#00ff00";
-        ctx.font = "16px monospace";
-        ctx.fillText(text, 20, dimensions.height - 20);
+          // Draw background for text
+          ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+          ctx.fillRect(10, dimensions.height - 40, 190, 30);
+
+          // Draw text
+          ctx.fillStyle = "#00ff00";
+          ctx.font = "16px monospace";
+          ctx.fillText(text, 20, dimensions.height - 20);
+        }
       }
 
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -345,6 +396,7 @@ const ProjectileCanvas = forwardRef<
     mousePosition,
     normalizedPosition,
     onMiss,
+    setDroneHealth,
   ]);
 
   return (
@@ -363,17 +415,16 @@ const ProjectileCanvas = forwardRef<
             dimensions.width > 0 && dimensions.height > 0 ? "auto" : "none",
         }}
       />
-      <div className="top-2 right-2 bottom-2 w-5 border-4 border-border/80 absolute z-20 flex flex-col-reverse">
-        {/* Health bar background */}
+      <div className="top-2 right-2 bottom-2 w-5 border-4 border-border/80 absolute z-20 flex flex-col-reverse bg-red-500/20">
         <div
-          className="w-full bg-red-500/20"
-          style={{ height: `${100 - droneHealth}%` }}
-        ></div>
-        {/* Health bar fill */}
-        <div
-          className="w-full bg-red-600 transition-all duration-300"
+          className="w-full bg-red-600 transition-all duration-300 ml-auto"
           style={{ height: `${droneHealth}%` }}
         ></div>
+      </div>
+      <div>
+        <div className="text-white text-sm absolute bottom-2 right-10">
+          DRONE HEALTH {droneHealth}%
+        </div>
       </div>
     </div>
   );
