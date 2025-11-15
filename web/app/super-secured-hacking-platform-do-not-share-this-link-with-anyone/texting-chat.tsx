@@ -1,22 +1,19 @@
 "use client";
 
+import { Tts } from "@/components/tts";
+import { Input } from "@/components/ui/input";
+import { getStoreState, useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useEffect, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { useStore, getStoreState } from "@/lib/store";
-import { cn } from "@/lib/utils";
-import { Tts } from "@/components/tts";
 
 export default function TextingChat() {
   const [input, setInput] = useState("");
   const {
     setUnlockedCamera,
-    setUnlockedMotion,
     setUnlockedFire,
-    setUnlockedTracking,
     setUnlockedAutoFire,
-    setUnlockedMotionPrediction,
     setUnlockedCode,
     setUnlockedCredits,
     unlockedMotion,
@@ -29,6 +26,7 @@ export default function TextingChat() {
     scenarioState,
     addToTtsQueue,
     setSendMessageCallback,
+    unlockAll,
   } = useStore();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -142,7 +140,7 @@ export default function TextingChat() {
   // Add new commander messages to TTS queue (only when complete)
   useEffect(() => {
     // Only process when not streaming to avoid queuing partial messages
-    if (status === "streaming" || status === "submitted") {
+    if (status !== "ready") {
       return;
     }
 
@@ -171,45 +169,12 @@ export default function TextingChat() {
     });
   }, [messages, addToTtsQueue, status]);
 
-  // Unlock everything when the '=' key is pressed
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "=") {
-        setUnlockedMotion(true);
-        setUnlockedFire(true);
-        setUnlockedTracking(true);
-        setUnlockedAutoFire(true);
-        setUnlockedMotionPrediction(true);
-        setUnlockedCode(true);
-        setUnlockedCredits(true);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [
-    setUnlockedMotion,
-    setUnlockedFire,
-    setUnlockedTracking,
-    setUnlockedAutoFire,
-    setUnlockedMotionPrediction,
-    setUnlockedCode,
-    setUnlockedCredits,
-  ]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     // Check if user said "MIRROR" to unlock everything
     if (input.trim() === "MIRROR") {
-      setUnlockedMotion(true);
-      setUnlockedFire(true);
-      setUnlockedTracking(true);
-      setUnlockedAutoFire(true);
-      setUnlockedMotionPrediction(true);
-      setUnlockedCode(true);
-      setUnlockedCredits(true);
+      unlockAll?.();
     }
 
     sendMessage({
@@ -233,7 +198,10 @@ export default function TextingChat() {
   return (
     <div className="border-4 p-2 flex flex-col gap-2 closed" id="chat">
       <Tts />
-      <div ref={scrollRef} className="overflow-y-auto flex-1">
+      <div
+        ref={scrollRef}
+        className="overflow-y-auto flex-1 flex flex-col gap-2 text-sm"
+      >
         {messages.map((m) => (
           <div
             key={m.id}
@@ -243,7 +211,7 @@ export default function TextingChat() {
                 : "text-muted-foreground"
             )}
           >
-            {m.role === "user" ? "YOU" : "GENERAL"}:{" "}
+            {m.role === "user" ? "YOU: " : ""}
             {m.parts
               .filter((part) => part.type === "text")
               .map((part, i) => (

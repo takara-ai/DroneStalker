@@ -88,6 +88,14 @@ export default function Code({
     currentPositionRef.current = codeTypedCode.length;
   }, [codeTypedCode]);
 
+  // Auto-complete code when progress is 100% (e.g., from unlockAll)
+  useEffect(() => {
+    if (codeProgress >= 100 && codeTypedCode !== targetCode) {
+      setCodeTypedCode(codeKey, targetCode);
+      currentPositionRef.current = targetCode.length;
+    }
+  }, [codeProgress, codeTypedCode, targetCode, setCodeTypedCode, codeKey]);
+
   // Typing speed tracking with sliding window
   const keyPressTimestampsRef = useRef<number[]>([]);
   const lastKeyPressTimeRef = useRef<number | null>(null);

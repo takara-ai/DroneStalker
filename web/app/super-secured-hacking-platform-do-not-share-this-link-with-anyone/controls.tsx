@@ -16,27 +16,26 @@ export default function Controls() {
     activeTracking,
     activeAutoFire,
     activeMotionPrediction,
+    activeLockTarget,
     setActiveCamera,
     setActiveMotionDetection,
     setActiveFire,
     setActiveTracking,
     setActiveAutoFire,
     setActiveMotionPrediction,
+    setActiveLockTarget,
   } = useStore();
 
   return (
-    <div className="border-4 grid grid-cols-2 p-6 closed" id="controls">
+    <div
+      className="border-4 grid grid-flow-col grid-cols-2 p-6 closed"
+      id="controls"
+    >
       <ToggleButton
         label="camera feed"
         value={activeCamera}
         onChange={setActiveCamera}
         locked={!unlockedCamera}
-      />
-      <ToggleButton
-        label="motion detection"
-        value={activeMotionDetection}
-        onChange={setActiveMotionDetection}
-        locked={!unlockedMotion}
       />
       <ToggleButton
         label="left click to fire"
@@ -45,22 +44,35 @@ export default function Controls() {
         locked={!unlockedFire}
       />
       <ToggleButton
+        label="motion detection"
+        value={activeMotionDetection}
+        onChange={setActiveMotionDetection}
+        locked={!unlockedMotion}
+      />
+      <ToggleButton
         label="tracking"
         value={activeTracking}
         onChange={setActiveTracking}
         locked={!unlockedTracking}
+      />
+
+      <ToggleButton
+        label="motion prediction"
+        value={activeMotionPrediction}
+        onChange={setActiveMotionPrediction}
+        locked={!unlockedMotionPrediction}
+      />
+      <ToggleButton
+        label="lock target"
+        value={activeLockTarget}
+        onChange={setActiveLockTarget}
+        locked={!unlockedMotionPrediction}
       />
       <ToggleButton
         label="auto fire"
         value={activeAutoFire}
         onChange={setActiveAutoFire}
         locked={!unlockedAutoFire}
-      />
-      <ToggleButton
-        label="motion prediction"
-        value={activeMotionPrediction}
-        onChange={setActiveMotionPrediction}
-        locked={!unlockedMotionPrediction}
       />
     </div>
   );

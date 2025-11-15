@@ -26,6 +26,21 @@ export default function Page() {
   );
   const triggerAction = useStore((state) => state.triggerAction);
   const codeStates = useStore((state) => state.codeStates);
+  const unlockAll = useStore((state) => state.unlockAll);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Check if the '=' key is pressed (both '=' and '+')
+      if (e.key === "=") {
+        unlockAll?.();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [unlockAll]);
 
   // Note: State progression logic is handled in store setters (setTab, setActiveMotionDetection, setActiveTracking)
   // State transitions triggered by AI tool calls are handled in texting-chat.tsx
@@ -38,17 +53,23 @@ export default function Page() {
   const handleCodeComplete = (
     codeKey: "motionDetection" | "tracking" | "positionPrediction"
   ) => {
-    if (codeKey === "motionDetection") {
+    // Get scenarioState from the zustand store
+    const scenarioState = useStore.getState().scenarioState;
+
+    if (codeKey === "motionDetection" && scenarioState === "firstCode") {
       // Motion detection code completed - automatically unlock motion detection
       setUnlockedMotion(true);
       setScenarioState("motionDetection");
       triggerAction("completed motion detection code");
-    } else if (codeKey === "tracking") {
+    } else if (codeKey === "tracking" && scenarioState === "tracking") {
       // Tracking code completed - automatically unlock tracking
       setUnlockedTracking(true);
       setScenarioState("trackingComplete");
       triggerAction("completed tracking code");
-    } else if (codeKey === "positionPrediction") {
+    } else if (
+      codeKey === "positionPrediction" &&
+      scenarioState === "positionPrediction"
+    ) {
       // Position prediction code completed - automatically unlock motion prediction
       setUnlockedMotionPrediction(true);
       setScenarioState("positionPredictionComplete");

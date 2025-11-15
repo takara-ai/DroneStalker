@@ -31,6 +31,7 @@ type StoreTypes = {
   activeTracking: boolean;
   activeAutoFire: boolean;
   activeMotionPrediction: boolean;
+  activeLockTarget: boolean;
   codeStates: Record<CodeKey, CodeState>;
   ttsQueue: string[]; // Queue of messages from commander to be spoken via text-to-speech
   setScenarioState: (value: keyof typeof scenarioStates) => void;
@@ -56,6 +57,7 @@ type StoreTypes = {
   setActiveTracking: (value: boolean) => void;
   setActiveAutoFire: (value: boolean) => void;
   setActiveMotionPrediction: (value: boolean) => void;
+  setActiveLockTarget: (value: boolean) => void;
   setCodeUnlocked: (codeKey: CodeKey, value: boolean) => void;
   setCodeTypingSpeedIndex: (codeKey: CodeKey, value: number) => void;
   setCodeProgress: (codeKey: CodeKey, value: number) => void;
@@ -65,6 +67,7 @@ type StoreTypes = {
   sendMessageCallback: ((action: string) => void) | null;
   setSendMessageCallback: (callback: ((action: string) => void) | null) => void;
   triggerAction: (action: string) => void;
+  unlockAll: () => void;
 };
 
 export const scenarioStates = {
@@ -116,6 +119,7 @@ export const useStore = create<StoreTypes>((set) => ({
   activeTracking: false,
   activeAutoFire: false,
   activeMotionPrediction: false,
+  activeLockTarget: false,
   codeStates: {
     motionDetection: { ...initialCodeState },
     tracking: { ...initialCodeState },
@@ -290,7 +294,12 @@ export const useStore = create<StoreTypes>((set) => ({
     });
   },
   setActiveAutoFire: (value) => set({ activeAutoFire: value }),
-  setActiveMotionPrediction: (value) => set({ activeMotionPrediction: value }),
+  setActiveMotionPrediction: (value) => {
+    if (value) {
+      set({ activeMotionPrediction: value, tab: "video" });
+    } else set({ activeMotionPrediction: value });
+  },
+  setActiveLockTarget: (value) => set({ activeLockTarget: value }),
   setCodeUnlocked: (codeKey, value) =>
     set((state) => ({
       codeStates: {
@@ -358,6 +367,33 @@ export const useStore = create<StoreTypes>((set) => ({
     if (currentState.sendMessageCallback) {
       currentState.sendMessageCallback(action);
     }
+  },
+  unlockAll: () => {
+    set({
+      unlockedCamera: true,
+      unlockedMotion: true,
+      unlockedFire: true,
+      unlockedTracking: true,
+      unlockedAutoFire: true,
+      unlockedMotionPrediction: true,
+      activeLockTarget: false,
+      unlockedCode: true,
+      unlockedCredits: true,
+      scenarioState: "success",
+      codeStates: {
+        motionDetection: {
+          ...initialCodeState,
+          unlocked: true,
+          codeProgress: 100,
+        },
+        tracking: { ...initialCodeState, unlocked: true, codeProgress: 100 },
+        positionPrediction: {
+          ...initialCodeState,
+          unlocked: true,
+          codeProgress: 100,
+        },
+      },
+    });
   },
 }));
 
