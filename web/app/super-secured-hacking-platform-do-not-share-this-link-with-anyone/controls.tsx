@@ -28,7 +28,7 @@ export default function Controls() {
 
   return (
     <div
-      className="border-4 grid grid-flow-col grid-cols-2 p-6 closed"
+      className="border-4 grid grid-flow-col grid-cols-2 grid-rows-3 p-6 closed"
       id="controls"
     >
       <ToggleButton
@@ -55,17 +55,16 @@ export default function Controls() {
         onChange={setActiveTracking}
         locked={!unlockedTracking}
       />
-
-      <ToggleButton
-        label="motion prediction"
-        value={activeMotionPrediction}
-        onChange={setActiveMotionPrediction}
-        locked={!unlockedMotionPrediction}
-      />
       <ToggleButton
         label="lock target"
         value={activeLockTarget}
         onChange={setActiveLockTarget}
+        locked={!unlockedTracking}
+      />
+      <ToggleButton
+        label="motion prediction"
+        value={activeMotionPrediction}
+        onChange={setActiveMotionPrediction}
         locked={!unlockedMotionPrediction}
       />
       <ToggleButton

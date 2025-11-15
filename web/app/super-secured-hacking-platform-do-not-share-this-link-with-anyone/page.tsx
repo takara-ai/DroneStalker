@@ -78,25 +78,27 @@ export default function Page() {
   };
 
   useEffect(() => {
-    // Find all elements with the class 'closed' and remove it one by one every 2s
-    const elements = Array.from(
-      document.querySelectorAll<HTMLElement>(".closed")
-    );
+    // Open panels in the required order by IDs: "you" → "commander" → "chat" → (pause) → "controls" → "main-panel"
+    const ids = ["you", "commander", "chat", "controls", "main-panel"];
     let idx = 0;
 
     function openNext() {
-      if (idx < elements.length) {
-        openPanel(elements[idx]);
+      if (idx < ids.length) {
+        const el = document.getElementById(ids[idx]);
+        if (el && el.classList.contains("closed")) {
+          openPanel(el);
+        }
         idx++;
-        if (idx < elements.length) {
-          setTimeout(openNext, 500);
+        // Wait longer before opening 'controls' (after chat)
+        if (idx === 3) {
+          setTimeout(openNext, 4000);
+        } else if (idx < ids.length) {
+          setTimeout(openNext, 2000);
         }
       }
     }
 
-    if (elements.length) {
-      openNext();
-    }
+    openNext();
     // Optionally, return cleanup if components could be remounted/reopened, but not strictly needed here.
   }, []);
 

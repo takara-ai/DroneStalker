@@ -11,6 +11,7 @@ type CodeState = {
 
 type StoreTypes = {
   scenarioState: keyof typeof scenarioStates;
+  dataId: string; // ID of the data set being used (e.g., "230")
   unlockedCamera: boolean;
   unlockedMotion: boolean;
   unlockedFire: boolean;
@@ -43,6 +44,7 @@ type StoreTypes = {
   setUnlockedMotionPrediction: (value: boolean) => void;
   setUnlockedCode: (value: boolean) => void;
   setUnlockedCredits: (value: boolean) => void;
+  setDataId: (value: string) => void;
   setTab: (
     value:
       | "video"
@@ -72,7 +74,7 @@ type StoreTypes = {
 
 export const scenarioStates = {
   intro:
-    "You are the Commander guiding the user in a high-security military drone defense simulation. The mission is classified. The first step is to introduce yourself and you need to unlock the camera feed for the user. Instruct the user to toggle ON the camera feed to start the mission.",
+    "You are the Commander guiding the user in a high-security military drone defense simulation. The mission is classified. The first step is to introduce yourself and instruct the user to toggle ON the camera feed to start the mission.",
   mission:
     "With the camera feed active, provide the user with crucial mission context. Inform them that their task is to eliminate an enemy drone breaching our airspace. Emphasize the urgency and threat the drone poses. After briefing the mission, immediately unlock the 'Fire' ability using the unlockFire tool so the user can attempt to shoot the drone.",
   fireUnlocked:
@@ -104,7 +106,8 @@ const initialCodeState: CodeState = {
 
 export const useStore = create<StoreTypes>((set) => ({
   scenarioState: "intro",
-  unlockedCamera: false,
+  dataId: "230",
+  unlockedCamera: true,
   unlockedMotion: false,
   unlockedFire: false,
   unlockedTracking: false,
@@ -177,6 +180,7 @@ export const useStore = create<StoreTypes>((set) => ({
       return { unlockedCredits: value };
     });
   },
+  setDataId: (value) => set({ dataId: value }),
   setTab: (value) => {
     set((state) => {
       // codeUnlocked → firstCode: When motionDetection code tab is opened
@@ -215,10 +219,6 @@ export const useStore = create<StoreTypes>((set) => ({
   },
   setActiveCamera: (value) => {
     set((state) => {
-      // Only allow camera activation if it's unlocked
-      if (value && !state.unlockedCamera) {
-        return state; // Don't change state if camera is locked
-      }
       // If camera is being turned on and we're in intro state, progress to mission
       if (value && state.scenarioState === "intro") {
         const newState = {

@@ -157,9 +157,12 @@ export function normalizePositionWithObjectCover(
 
 /**
  * Load and parse coordinates from the public folder
+ * @param dataId The data set ID (e.g., "230")
  */
-export async function loadCoordinates(): Promise<DronePosition[]> {
-  const response = await fetch("/coordinates.txt");
+export async function loadCoordinates(
+  dataId: string = "230"
+): Promise<DronePosition[]> {
+  const response = await fetch(`/data/${dataId}/coordinates.txt`);
   if (!response.ok) {
     throw new Error(`Failed to load coordinates: ${response.statusText}`);
   }

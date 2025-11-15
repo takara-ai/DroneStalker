@@ -16,7 +16,6 @@ export const maxDuration = 30;
 
 // Define tool names as a type
 type ToolName =
-  | "unlockCamera"
   | "unlockFire"
   | "unlockCode"
   | "unlockCredits"
@@ -28,8 +27,8 @@ function getActiveToolsForScenario(
 ): ToolName[] | undefined {
   switch (scenarioState) {
     case "intro":
-      // Can unlock camera feed
-      return ["unlockCamera"];
+      // Camera is always unlocked, no tools needed
+      return undefined;
     case "mission":
       // Can unlock fire ability
       return ["unlockFire"];
@@ -103,10 +102,6 @@ Note: If the user says the secret code "MIRROR" in all caps, it will unlock all 
       stepCountIs(5), // Maximum steps
     ],
     tools: {
-      unlockCamera: {
-        description: "Unlock the camera feed for the user",
-        inputSchema: z.object({}),
-      },
       unlockFire: {
         description: "Unlock left click to fire ability for the user",
         inputSchema: z.object({}),

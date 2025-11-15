@@ -24,6 +24,7 @@ export default function VideoFeed() {
   const triggerAction = useStore((state) => state.triggerAction);
   const activeFire = useStore((state) => state.activeFire);
   const activeLockTarget = useStore((state) => state.activeLockTarget);
+  const dataId = useStore((state) => state.dataId);
   const projectileCanvasRef = useRef<ProjectileCanvasHandle>(null);
   const coloredVideoRef = useRef<HTMLVideoElement>(null);
   const motionVideoRef = useRef<HTMLVideoElement>(null);
@@ -39,16 +40,16 @@ export default function VideoFeed() {
     height: number;
   } | null>(null);
 
-  // Load coordinates on mount
+  // Load coordinates on mount and when dataId changes
   useEffect(() => {
-    loadCoordinates()
+    loadCoordinates(dataId)
       .then((coords) => {
         setCoordinates(coords);
       })
       .catch((error) => {
         console.error("Failed to load coordinates:", error);
       });
-  }, []);
+  }, [dataId]);
 
   // Track video time and update position using requestAnimationFrame for smooth updates
   useEffect(() => {
@@ -209,7 +210,7 @@ export default function VideoFeed() {
         >
           <video
             ref={coloredVideoRef}
-            src="/colored.webm"
+            src={`/data/${dataId}/colored.webm`}
             autoPlay
             muted
             loop
@@ -220,7 +221,7 @@ export default function VideoFeed() {
           ></video>
           <video
             ref={motionVideoRef}
-            src="/motion.webm"
+            src={`/data/${dataId}/motion.webm`}
             autoPlay
             muted
             loop

@@ -11,7 +11,6 @@ import { useEffect, useRef, useState } from "react";
 export default function TextingChat() {
   const [input, setInput] = useState("");
   const {
-    setUnlockedCamera,
     setUnlockedFire,
     setUnlockedAutoFire,
     setUnlockedCode,
@@ -36,19 +35,13 @@ export default function TextingChat() {
       console.error("Chat error:", error);
     },
     onFinish: () => {
-      if (scenarioState === "intro") {
-        setUnlockedCamera(true);
-      }
+      // Camera is always unlocked, no action needed
     },
     onToolCall: async (toolCall) => {
       const toolName = toolCall.toolCall.toolName;
       console.log("Tool call:", toolName);
 
       switch (toolName) {
-        case "unlockCamera":
-          setUnlockedCamera(true);
-          // State transition happens in setActiveCamera when user toggles it
-          break;
         case "unlockFire":
           setUnlockedFire(true);
           // State transition happens in setUnlockedFire setter
