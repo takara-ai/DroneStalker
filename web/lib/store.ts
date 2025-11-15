@@ -34,6 +34,7 @@ type StoreTypes = {
   activeAutoFire: boolean;
   activeMotionPrediction: boolean;
   activeLockTarget: boolean;
+  droneHealth: number; // 0-100, drone health percentage
   codeStates: Record<CodeKey, CodeState>;
   ttsQueue: string[]; // Queue of messages from commander to be spoken via text-to-speech
   setScenarioState: (value: keyof typeof scenarioStates) => void;
@@ -61,6 +62,7 @@ type StoreTypes = {
   setActiveAutoFire: (value: boolean) => void;
   setActiveMotionPrediction: (value: boolean) => void;
   setActiveLockTarget: (value: boolean) => void;
+  setDroneHealth: (value: number) => void;
   setCodeUnlocked: (codeKey: CodeKey, value: boolean) => void;
   setCodeTypingSpeedIndex: (codeKey: CodeKey, value: number) => void;
   setCodeProgress: (codeKey: CodeKey, value: number) => void;
@@ -77,7 +79,7 @@ export const scenarioStates = {
   intro:
     "You are the Commander guiding the user in a high-security military drone defense simulation. The mission is classified. The first step is to introduce yourself and instruct the user to toggle ON the camera feed to start the mission.",
   mission:
-    "With the camera feed active, provide the user with crucial mission context. Inform them that their task is to eliminate an enemy drone breaching our airspace. Emphasize the urgency and threat the drone poses. The 'Fire' ability is already unlocked. Instruct the user to toggle on 'left click to fire' and attempt to shoot the enemy drone manually. Note that the drone moves too quickly for manual targeting, and prompt the user to experience this difficulty. After they try and fail, unlock the Code tab using the unlockCode tool.",
+    "With the camera feed active, provide the user with crucial mission context. Inform them that their task is to eliminate an enemy drone breaching our airspace. Emphasize the urgency and threat the drone poses. The 'Fire' ability is already unlocked. Instruct the user to toggle on 'left click to fire' and attempt to shoot the enemy drone manually. Note that the drone moves too quickly for manual targeting, and prompt the user to experience this difficulty. After they try and miss, the Code tab will be automatically unlocked.",
   codeUnlocked:
     "The Code tab has been unlocked. Clearly instruct the user to open the Code tab to develop an automated interception solution. We need a code that extract movement from a video comparing a frame to the next frame and making a difference between the two. This difference will highlight the movement of objects in the video. That data will be crutial for tracking the drone's position.",
   firstCode:
@@ -93,7 +95,7 @@ export const scenarioStates = {
   positionPredictionComplete:
     "The position prediction code has been completed and the 'Position Prediction' toggle has been automatically unlocked. Instruct the user to activate this feature, improving crosshair accuracy. Encourage another attempt at firing.",
   success:
-    "The user has successfully intercepted the drone. Congratulate them formally and use the unlockCredits tool to unlock the Credits tab as a reward.",
+    "The user has successfully intercepted the drone. Congratulate them formally. The Credits tab will be automatically unlocked when the drone is destroyed (health reaches 0).",
 };
 
 const initialCodeState: CodeState = {
@@ -122,6 +124,7 @@ export const useStore = create<StoreTypes>((set) => ({
   activeAutoFire: false,
   activeMotionPrediction: false,
   activeLockTarget: false,
+  droneHealth: 100, // Start at full health
   codeStates: {
     motionDetection: { ...initialCodeState },
     tracking: { ...initialCodeState },
@@ -292,6 +295,18 @@ export const useStore = create<StoreTypes>((set) => ({
     } else set({ activeMotionPrediction: value });
   },
   setActiveLockTarget: (value) => set({ activeLockTarget: value }),
+  setDroneHealth: (value) =>
+    set((state) => {
+      const newHealth = Math.max(0, Math.min(100, value));
+      // Unlock credits when drone health reaches 0
+      if (newHealth === 0 && !state.unlockedCredits) {
+        return {
+          droneHealth: newHealth,
+          unlockedCredits: true,
+        };
+      }
+      return { droneHealth: newHealth };
+    }),
   setCodeUnlocked: (codeKey, value) =>
     set((state) => ({
       codeStates: {

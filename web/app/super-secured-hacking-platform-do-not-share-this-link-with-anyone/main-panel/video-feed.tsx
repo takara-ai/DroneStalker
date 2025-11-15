@@ -2,6 +2,7 @@
 
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { highlightId } from "@/lib/highlight";
 import { useRef, useEffect, useState } from "react";
 import ProjectileCanvas, {
   type ProjectileCanvasHandle,
@@ -25,6 +26,8 @@ export default function VideoFeed() {
   const activeFire = useStore((state) => state.activeFire);
   const activeLockTarget = useStore((state) => state.activeLockTarget);
   const dataId = useStore((state) => state.dataId);
+  const unlockedCode = useStore((state) => state.unlockedCode);
+  const setUnlockedCode = useStore((state) => state.setUnlockedCode);
   const projectileCanvasRef = useRef<ProjectileCanvasHandle>(null);
   const coloredVideoRef = useRef<HTMLVideoElement>(null);
   const motionVideoRef = useRef<HTMLVideoElement>(null);
@@ -178,13 +181,14 @@ export default function VideoFeed() {
     };
   }, [activeCamera, activeMotionDetection, coordinates]);
 
-  // Handle projectile firing
-  const handleProjectileClick = (x: number, y: number) => {
-    if (projectileCanvasRef.current) {
-      projectileCanvasRef.current.addProjectile(x, y);
-    }
-    if (scenarioState === "mission") {
-      triggerAction("fired a projectile but missed");
+  // Handle projectile miss - unlock code on first miss
+  const handleProjectileMiss = () => {
+    if (!unlockedCode && scenarioState === "mission") {
+      setUnlockedCode(true);
+      highlightId("tab-motionDetection");
+      setTimeout(() => {
+        triggerAction("fired a projectile but missed");
+      }, 0);
     }
   };
 
@@ -380,7 +384,7 @@ export default function VideoFeed() {
             )}
           {activeCamera && activeFire && (
             <ProjectileCanvas
-              onMouseClick={handleProjectileClick}
+              onMiss={handleProjectileMiss}
               ref={projectileCanvasRef}
               normalizedPosition={normalizedPosition}
             />

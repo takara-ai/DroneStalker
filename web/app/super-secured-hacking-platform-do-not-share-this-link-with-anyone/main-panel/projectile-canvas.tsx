@@ -6,8 +6,10 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  useCallback,
 } from "react";
 import type { NormalizedPosition } from "@/lib/drone-coordinates";
+import { useStore } from "@/lib/store";
 
 interface Projectile {
   id: number;
@@ -22,8 +24,8 @@ interface Projectile {
 }
 
 interface ProjectileCanvasProps {
-  onMouseClick: (xPercent: number, yPercent: number) => void;
   normalizedPosition: NormalizedPosition | null; // Drone bounding box (0-1 range)
+  onMiss?: () => void; // Callback when a projectile misses
 }
 
 export interface ProjectileCanvasHandle {
@@ -33,7 +35,7 @@ export interface ProjectileCanvasHandle {
 const ProjectileCanvas = forwardRef<
   ProjectileCanvasHandle,
   ProjectileCanvasProps
->(({ onMouseClick, normalizedPosition }, ref) => {
+>(({ normalizedPosition, onMiss }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const projectilesRef = useRef<Projectile[]>([]);
@@ -41,6 +43,7 @@ const ProjectileCanvas = forwardRef<
   const animationFrameRef = useRef<number | undefined>(undefined);
   const fireSoundRef = useRef<HTMLAudioElement | null>(null);
   const hitSoundRef = useRef<HTMLAudioElement | null>(null);
+  const droneHealth = useStore((state) => state.droneHealth);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [mousePosition, setMousePosition] = useState<{
     x: number;
@@ -72,6 +75,7 @@ const ProjectileCanvas = forwardRef<
   }, []);
 
   // Calculate dimensions from container
+  // Delay initial calculation to wait for .opened animation to complete (0.7s + buffer)
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
@@ -80,113 +84,135 @@ const ProjectileCanvas = forwardRef<
       }
     };
 
-    updateDimensions();
+    // Set up resize observer immediately for subsequent changes
     const resizeObserver = new ResizeObserver(updateDimensions);
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }
 
+    // Wait for the .opened animation to complete (0.7s) plus a small buffer
+    // before doing the initial dimension calculation
+    const timeoutId = setTimeout(() => {
+      updateDimensions();
+    }, 1000); // 1 second delay to ensure animation completes
+
     return () => {
+      clearTimeout(timeoutId);
       resizeObserver.disconnect();
     };
   }, []);
 
   // Helper function to calculate mouse position accounting for viewport transform
-  const calculateMousePosition = (clientX: number, clientY: number) => {
-    const viewport = document.getElementById("viewport");
-    const canvas = canvasRef.current;
+  const calculateMousePosition = useCallback(
+    (clientX: number, clientY: number) => {
+      const viewport = document.getElementById("viewport");
+      const canvas = canvasRef.current;
 
-    if (viewport && canvas) {
-      const viewportRect = viewport.getBoundingClientRect();
-      const canvasRect = canvas.getBoundingClientRect();
+      if (viewport && canvas) {
+        const viewportRect = viewport.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
 
-      // Calculate the scale factor applied by the viewport
-      // Viewport base size is 1920x1080
-      const scale = viewportRect.width / 1920;
+        // Calculate the scale factor applied by the viewport
+        // Viewport base size is 1920x1080
+        const scale = viewportRect.width / 1920;
 
-      // Get mouse position relative to viewport (in screen coordinates)
-      const mouseX = clientX - viewportRect.left;
-      const mouseY = clientY - viewportRect.top;
+        // Get mouse position relative to viewport (in screen coordinates)
+        const mouseX = clientX - viewportRect.left;
+        const mouseY = clientY - viewportRect.top;
 
-      // Convert to viewport coordinate space (1920x1080) by dividing by scale
-      const viewportX = mouseX / scale;
-      const viewportY = mouseY / scale;
+        // Convert to viewport coordinate space (1920x1080) by dividing by scale
+        const viewportX = mouseX / scale;
+        const viewportY = mouseY / scale;
 
-      // Get canvas position within viewport (in viewport coordinates)
-      const canvasInViewportX = (canvasRect.left - viewportRect.left) / scale;
-      const canvasInViewportY = (canvasRect.top - viewportRect.top) / scale;
+        // Get canvas position within viewport (in viewport coordinates)
+        const canvasInViewportX = (canvasRect.left - viewportRect.left) / scale;
+        const canvasInViewportY = (canvasRect.top - viewportRect.top) / scale;
 
-      // Calculate final coordinates relative to canvas
-      const x = viewportX - canvasInViewportX;
-      const y = viewportY - canvasInViewportY;
+        // Calculate final coordinates relative to canvas
+        const x = viewportX - canvasInViewportX;
+        const y = viewportY - canvasInViewportY;
 
-      return { x, y };
-    }
-    return null;
-  };
+        return { x, y };
+      }
+      return null;
+    },
+    []
+  );
 
   // Handle mouse movement for debug display
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const pos = calculateMousePosition(e.clientX, e.clientY);
-    if (pos) {
-      setMousePosition(pos);
-    }
-  };
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const pos = calculateMousePosition(e.clientX, e.clientY);
+      if (pos) {
+        setMousePosition(pos);
+      }
+    },
+    [calculateMousePosition]
+  );
 
   // Handle mouse leave to clear position
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setMousePosition(null);
-  };
+  }, []);
+
+  // Internal function to add a projectile
+  const addProjectile = useCallback(
+    (targetXPercent: number, targetYPercent: number) => {
+      // Play fire sound effect
+      if (fireSoundRef.current) {
+        // Clone and play to allow overlapping sounds
+        const sound = fireSoundRef.current.cloneNode() as HTMLAudioElement;
+        sound.volume = fireSoundRef.current.volume;
+        sound.play().catch((error) => {
+          console.warn("Could not play fire sound:", error);
+        });
+      }
+
+      const startXPercent = 50; // Center horizontally
+      const startYPercent = 98; // Near bottom (98%)
+      const duration = 1500; // 1.5 seconds
+      const initialSize = 12;
+
+      const projectile: Projectile = {
+        id: nextIdRef.current++,
+        startXPercent,
+        startYPercent,
+        targetXPercent,
+        targetYPercent,
+        startTime: Date.now(),
+        duration,
+        initialSize,
+      };
+
+      projectilesRef.current.push(projectile);
+    },
+    []
+  );
 
   // Handle mouse clicks
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.button === 0) {
-      // Left click only
-      const pos = calculateMousePosition(e.clientX, e.clientY);
-      if (pos && dimensions.width > 0 && dimensions.height > 0) {
-        // Convert to percentages (0-100)
-        const xPercent = (pos.x / dimensions.width) * 100;
-        const yPercent = (pos.y / dimensions.height) * 100;
-        onMouseClick(xPercent, yPercent);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (e.button === 0) {
+        // Left click only
+        const pos = calculateMousePosition(e.clientX, e.clientY);
+        if (pos && dimensions.width > 0 && dimensions.height > 0) {
+          // Convert to percentages (0-100)
+          const xPercent = (pos.x / dimensions.width) * 100;
+          const yPercent = (pos.y / dimensions.height) * 100;
+          addProjectile(xPercent, yPercent);
+        }
       }
-    }
-  };
+    },
+    [dimensions, addProjectile, calculateMousePosition]
+  );
 
-  // Expose addProjectile via ref
+  // Expose addProjectile via ref for programmatic use (e.g., autofire)
   useImperativeHandle(
     ref,
     () => ({
-      addProjectile: (targetXPercent: number, targetYPercent: number) => {
-        // Play fire sound effect
-        if (fireSoundRef.current) {
-          // Clone and play to allow overlapping sounds
-          const sound = fireSoundRef.current.cloneNode() as HTMLAudioElement;
-          sound.volume = fireSoundRef.current.volume;
-          sound.play().catch((error) => {
-            console.warn("Could not play fire sound:", error);
-          });
-        }
-
-        const startXPercent = 50; // Center horizontally
-        const startYPercent = 98; // Near bottom (98%)
-        const duration = 1500; // 1.5 seconds
-        const initialSize = 12;
-
-        const projectile: Projectile = {
-          id: nextIdRef.current++,
-          startXPercent,
-          startYPercent,
-          targetXPercent,
-          targetYPercent,
-          startTime: Date.now(),
-          duration,
-          initialSize,
-        };
-
-        projectilesRef.current.push(projectile);
-      },
+      addProjectile,
     }),
-    []
+    [addProjectile]
   );
 
   // Animation loop
@@ -210,6 +236,10 @@ const ProjectileCanvas = forwardRef<
 
         // Remove if expired
         if (progress >= 1) {
+          // If projectile expired without hitting, it's a miss
+          if (!proj.hitDetected && onMiss) {
+            onMiss();
+          }
           return false;
         }
 
@@ -309,25 +339,41 @@ const ProjectileCanvas = forwardRef<
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [dimensions.width, dimensions.height, mousePosition, normalizedPosition]);
+  }, [
+    dimensions.width,
+    dimensions.height,
+    mousePosition,
+    normalizedPosition,
+    onMiss,
+  ]);
 
   return (
     <div ref={containerRef} className="absolute inset-0">
-      {dimensions.width > 0 && dimensions.height > 0 && (
-        <canvas
-          ref={canvasRef}
-          width={dimensions.width}
-          height={dimensions.height}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          className="absolute size-full inset-0 cursor-crosshair pointer-events-auto"
-          style={{ zIndex: 20 }}
-        />
-      )}
-      <div className="top-2 right-2 bottom-2 w-5 border-4 border-border/50 absolute z-20">
-        {/* drone health bar TODO */}
-        <div className="w-full h-full bg-red-500/20"></div>
+      <canvas
+        ref={canvasRef}
+        width={dimensions.width || 1}
+        height={dimensions.height || 1}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        className="absolute size-full inset-0 cursor-crosshair pointer-events-auto z-20"
+        style={{
+          opacity: dimensions.width > 0 && dimensions.height > 0 ? 1 : 0,
+          pointerEvents:
+            dimensions.width > 0 && dimensions.height > 0 ? "auto" : "none",
+        }}
+      />
+      <div className="top-2 right-2 bottom-2 w-5 border-4 border-border/80 absolute z-20 flex flex-col-reverse">
+        {/* Health bar background */}
+        <div
+          className="w-full bg-red-500/20"
+          style={{ height: `${100 - droneHealth}%` }}
+        ></div>
+        {/* Health bar fill */}
+        <div
+          className="w-full bg-red-600 transition-all duration-300"
+          style={{ height: `${droneHealth}%` }}
+        ></div>
       </div>
     </div>
   );
