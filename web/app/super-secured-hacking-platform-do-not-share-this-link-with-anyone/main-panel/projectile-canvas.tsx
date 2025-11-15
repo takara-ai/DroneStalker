@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { NormalizedPosition } from "@/lib/drone-coordinates";
 
 interface Projectile {
   id: number;
@@ -17,10 +18,12 @@ interface Projectile {
   startTime: number;
   duration: number; // milliseconds
   initialSize: number;
+  hitDetected?: boolean; // Track if hit has been detected
 }
 
 interface ProjectileCanvasProps {
   onMouseClick: (xPercent: number, yPercent: number) => void;
+  normalizedPosition: NormalizedPosition | null; // Drone bounding box (0-1 range)
 }
 
 export interface ProjectileCanvasHandle {
@@ -30,17 +33,43 @@ export interface ProjectileCanvasHandle {
 const ProjectileCanvas = forwardRef<
   ProjectileCanvasHandle,
   ProjectileCanvasProps
->(({ onMouseClick }, ref) => {
+>(({ onMouseClick, normalizedPosition }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const projectilesRef = useRef<Projectile[]>([]);
   const nextIdRef = useRef(0);
   const animationFrameRef = useRef<number | undefined>(undefined);
+  const fireSoundRef = useRef<HTMLAudioElement | null>(null);
+  const hitSoundRef = useRef<HTMLAudioElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [mousePosition, setMousePosition] = useState<{
     x: number;
     y: number;
   } | null>(null);
+
+  // Initialize fire sound effect
+  useEffect(() => {
+    const fireSound = new Audio("/fire.wav");
+    fireSound.volume = 0.3; // Adjust volume as needed
+    fireSoundRef.current = fireSound;
+
+    return () => {
+      fireSound.pause();
+      fireSound.src = "";
+    };
+  }, []);
+
+  // Initialize hit sound effect
+  useEffect(() => {
+    const hitSound = new Audio("/hit.wav");
+    hitSound.volume = 0.5; // Adjust volume as needed
+    hitSoundRef.current = hitSound;
+
+    return () => {
+      hitSound.pause();
+      hitSound.src = "";
+    };
+  }, []);
 
   // Calculate dimensions from container
   useEffect(() => {
@@ -128,6 +157,16 @@ const ProjectileCanvas = forwardRef<
     ref,
     () => ({
       addProjectile: (targetXPercent: number, targetYPercent: number) => {
+        // Play fire sound effect
+        if (fireSoundRef.current) {
+          // Clone and play to allow overlapping sounds
+          const sound = fireSoundRef.current.cloneNode() as HTMLAudioElement;
+          sound.volume = fireSoundRef.current.volume;
+          sound.play().catch((error) => {
+            console.warn("Could not play fire sound:", error);
+          });
+        }
+
         const startXPercent = 50; // Center horizontally
         const startYPercent = 98; // Near bottom (98%)
         const duration = 1500; // 1.5 seconds
@@ -199,6 +238,36 @@ const ProjectileCanvas = forwardRef<
           2 * (1 - t) * t * controlY +
           t * t * targetY;
 
+        // Check for hit when projectile is about to expire (progress >= 0.95)
+        if (progress >= 0.95 && !proj.hitDetected && normalizedPosition) {
+          // Convert projectile position to normalized coordinates (0-1 range)
+          const projXNormalized = x / dimensions.width;
+          const projYNormalized = y / dimensions.height;
+
+          // Check if projectile is inside drone bounding box
+          const droneLeft = normalizedPosition.x;
+          const droneRight = normalizedPosition.x + normalizedPosition.width;
+          const droneTop = normalizedPosition.y;
+          const droneBottom = normalizedPosition.y + normalizedPosition.height;
+
+          if (
+            projXNormalized >= droneLeft &&
+            projXNormalized <= droneRight &&
+            projYNormalized >= droneTop &&
+            projYNormalized <= droneBottom
+          ) {
+            // Hit detected! Play sound and mark as hit
+            proj.hitDetected = true;
+            if (hitSoundRef.current) {
+              const sound = hitSoundRef.current.cloneNode() as HTMLAudioElement;
+              sound.volume = hitSoundRef.current.volume;
+              sound.play().catch((error) => {
+                console.warn("Could not play hit sound:", error);
+              });
+            }
+          }
+        }
+
         // Calculate size (starts large, gets smaller)
         const size = proj.initialSize * (1 - progress * 0.9); // Shrinks to 30% of original
 
@@ -240,10 +309,10 @@ const ProjectileCanvas = forwardRef<
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [dimensions.width, dimensions.height, mousePosition]);
+  }, [dimensions.width, dimensions.height, mousePosition, normalizedPosition]);
 
   return (
-    <div ref={containerRef} className="absolute inset-2">
+    <div ref={containerRef} className="absolute inset-0">
       {dimensions.width > 0 && dimensions.height > 0 && (
         <canvas
           ref={canvasRef}
@@ -256,6 +325,10 @@ const ProjectileCanvas = forwardRef<
           style={{ zIndex: 20 }}
         />
       )}
+      <div className="top-2 right-2 bottom-2 w-5 border-4 border-border/50 absolute z-20">
+        {/* drone health bar TODO */}
+        <div className="w-full h-full bg-red-500/20"></div>
+      </div>
     </div>
   );
 });

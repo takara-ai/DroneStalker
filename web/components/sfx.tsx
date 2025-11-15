@@ -9,36 +9,36 @@ export function SoundEffects() {
   const keyPressRef = useRef<HTMLAudioElement | null>(null);
   const keyReleaseRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize audio elements
+  // Initialize audio elements and start immediately (interaction handled by ClickToEnter)
   useEffect(() => {
     // Background noise - looping
-    const bgNoise = new Audio("/white-noise.mp3");
+    const bgNoise = new Audio("/white-noise.wav");
     bgNoise.loop = true;
-    bgNoise.volume = 0.3; // Adjust volume as needed
+    bgNoise.volume = 0.1; // Adjust volume as needed
     backgroundNoiseRef.current = bgNoise;
+
+    // Start background sound immediately
+    bgNoise.play().catch((error) => {
+      console.warn("Could not play background noise:", error);
+    });
 
     // Mouse sounds
     const mousePress = new Audio("/mouse-press.wav");
-    mousePress.volume = 0.5;
+    mousePress.volume = 0.1;
     mousePressRef.current = mousePress;
 
     const mouseRelease = new Audio("/mouse-release.wav");
-    mouseRelease.volume = 0.5;
+    mouseRelease.volume = 0.1;
     mouseReleaseRef.current = mouseRelease;
 
     // Keyboard sounds
     const keyPress = new Audio("/key-press.wav");
-    keyPress.volume = 0.5;
+    keyPress.volume = 0.1;
     keyPressRef.current = keyPress;
 
     const keyRelease = new Audio("/key-release.wav");
-    keyRelease.volume = 0.5;
+    keyRelease.volume = 0.1;
     keyReleaseRef.current = keyRelease;
-
-    // Start background noise
-    bgNoise.play().catch((error) => {
-      console.warn("Could not play background noise:", error);
-    });
 
     // Cleanup function
     return () => {

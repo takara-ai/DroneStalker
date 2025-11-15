@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Viewport } from "@/components/viewport";
 import { SoundEffects } from "@/components/sfx";
+import { ClickToEnter } from "@/components/click-to-enter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,8 +30,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full w-full crt`}
       >
-        <SoundEffects />
-        <Viewport>{children}</Viewport>
+        <ClickToEnter>
+          <SoundEffects />
+          <Viewport>{children}</Viewport>
+        </ClickToEnter>
       </body>
     </html>
   );

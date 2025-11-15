@@ -190,3 +190,26 @@
     opacity: 0;
   }
 }
+
+.highlight {
+  animation: highlight-flash 1s cubic-bezier(0.6, 0, 0.6, 1) infinite;
+  animation-delay: 3s;
+}
+
+@keyframes highlight-flash {
+  0% {
+    background-color: inherit;
+  }
+  25% {
+    background-color: #fbff2ab0; /* bright yellow */
+  }
+  50% {
+    background-color: inherit;
+  }
+  75% {
+    background-color: #fbff2aab;
+  }
+  100% {
+    background-color: inherit;
+  }
+}

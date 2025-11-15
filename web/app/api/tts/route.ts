@@ -35,8 +35,12 @@ export async function GET(req: NextRequest) {
     return new Response("TTS API error", { status: response.status });
   }
 
-  const audioBuffer = await response.arrayBuffer();
-  return new Response(audioBuffer, {
+  // Stream the response directly without buffering
+  if (!response.body) {
+    return new Response("No response body", { status: 500 });
+  }
+
+  return new Response(response.body, {
     headers: {
       "Content-Type": "audio/mpeg",
     },

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { highlightId } from "./highlight";
 
 type CodeKey = "motionDetection" | "tracking" | "positionPrediction";
 
@@ -76,11 +77,9 @@ export const scenarioStates = {
   intro:
     "You are the Commander guiding the user in a high-security military drone defense simulation. The mission is classified. The first step is to introduce yourself and instruct the user to toggle ON the camera feed to start the mission.",
   mission:
-    "With the camera feed active, provide the user with crucial mission context. Inform them that their task is to eliminate an enemy drone breaching our airspace. Emphasize the urgency and threat the drone poses. After briefing the mission, immediately unlock the 'Fire' ability using the unlockFire tool so the user can attempt to shoot the drone.",
-  fireUnlocked:
-    "The 'Fire' ability has been unlocked. Instruct the user to toggle on 'left click to fire' and attempt to shoot the enemy drone manually. Note that the drone moves too quickly for manual targeting, and prompt the user to experience this difficulty. After they try and fail, unlock the Code tab using the unlockCode tool.",
+    "With the camera feed active, provide the user with crucial mission context. Inform them that their task is to eliminate an enemy drone breaching our airspace. Emphasize the urgency and threat the drone poses. The 'Fire' ability is already unlocked. Instruct the user to toggle on 'left click to fire' and attempt to shoot the enemy drone manually. Note that the drone moves too quickly for manual targeting, and prompt the user to experience this difficulty. After they try and fail, unlock the Code tab using the unlockCode tool.",
   codeUnlocked:
-    "The Code tab has been unlocked. Clearly instruct the user to open the Code tab to develop an automated interception solution.",
+    "The Code tab has been unlocked. Clearly instruct the user to open the Code tab to develop an automated interception solution. We need a code that extract movement from a video comparing a frame to the next frame and making a difference between the two. This difference will highlight the movement of objects in the video. That data will be crutial for tracking the drone's position.",
   firstCode:
     "The user has entered the Code tab. As the Commander, task them with writing software to extract and track the drone's position from the camera feed (motion detection). Clearly specify that completion of this code is required before proceeding.",
   motionDetection:
@@ -106,7 +105,7 @@ const initialCodeState: CodeState = {
 
 export const useStore = create<StoreTypes>((set) => ({
   scenarioState: "intro",
-  dataId: "230",
+  dataId: "60",
   unlockedCamera: true,
   unlockedMotion: false,
   unlockedFire: false,
@@ -132,26 +131,16 @@ export const useStore = create<StoreTypes>((set) => ({
   setScenarioState: (value) => set({ scenarioState: value }),
   setUnlockedCamera: (value) => set({ unlockedCamera: value }),
   setUnlockedMotion: (value) => set({ unlockedMotion: value }),
-  setUnlockedFire: (value) => {
-    set((state) => {
-      // Progress state: mission → fireUnlocked
-      if (value && state.scenarioState === "mission") {
-        return {
-          unlockedFire: value,
-          scenarioState: "fireUnlocked" as const,
-        };
-      }
-      return { unlockedFire: value };
-    });
-  },
+  setUnlockedFire: (value) => set({ unlockedFire: value }),
   setUnlockedTracking: (value) => set({ unlockedTracking: value }),
   setUnlockedAutoFire: (value) => set({ unlockedAutoFire: value }),
   setUnlockedMotionPrediction: (value) =>
     set({ unlockedMotionPrediction: value }),
   setUnlockedCode: (value) => {
     set((state) => {
-      // Progress state: fireUnlocked → codeUnlocked
-      if (value && state.scenarioState === "fireUnlocked") {
+      // Progress state: mission → codeUnlocked
+      if (value && state.scenarioState === "mission") {
+        highlightId("tab-motionDetection");
         return {
           unlockedCode: value,
           scenarioState: "codeUnlocked" as const,
@@ -219,10 +208,12 @@ export const useStore = create<StoreTypes>((set) => ({
   },
   setActiveCamera: (value) => {
     set((state) => {
-      // If camera is being turned on and we're in intro state, progress to mission
+      // If camera is being turned on and we're in intro state, progress to mission and unlock fire
       if (value && state.scenarioState === "intro") {
+        highlightId("left-click-to-fire");
         const newState = {
           activeCamera: value,
+          unlockedFire: true,
           scenarioState: "mission" as const,
         };
         // Trigger action after state update
@@ -241,6 +232,7 @@ export const useStore = create<StoreTypes>((set) => ({
         setTimeout(() => {
           useStore.getState().triggerAction("enabled motion detection");
         }, 0);
+        highlightId("tab-tracking");
         return {
           activeMotionDetection: value,
           activeCamera: true,

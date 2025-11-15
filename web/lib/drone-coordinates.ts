@@ -19,15 +19,30 @@ export interface NormalizedPosition {
 
 /**
  * Parse coordinates.txt file content
- * Format: time: x1, y1, x2, y2
+ * Format: time: x1, y1, x2, y2, confidence
+ * Supports negative numbers and integers without decimals
+ * The confidence value (6th number) is ignored
  */
 export function parseCoordinates(content: string): DronePosition[] {
-  const lines = content.trim().split("\n");
+  // Normalize line endings and split
+  const lines = content
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .split("\n");
   const positions: DronePosition[] = [];
 
   for (const line of lines) {
-    const match = line.match(
-      /^([\d.]+):\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)$/
+    // Skip empty lines
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+    
+    // Updated regex to handle:
+    // - Optional negative sign: -?
+    // - Numbers with or without decimals: [0-9]+(\.[0-9]+)?
+    // - Optional 6th value (confidence) that we ignore
+    const match = trimmedLine.match(
+      /^(-?[0-9]+(?:\.[0-9]+)?):\s*(-?[0-9]+(?:\.[0-9]+)?),\s*(-?[0-9]+(?:\.[0-9]+)?),\s*(-?[0-9]+(?:\.[0-9]+)?),\s*(-?[0-9]+(?:\.[0-9]+)?)(?:,\s*(-?[0-9]+(?:\.[0-9]+)?))?$/
     );
     if (match) {
       positions.push({
@@ -36,7 +51,11 @@ export function parseCoordinates(content: string): DronePosition[] {
         y1: parseFloat(match[3]),
         x2: parseFloat(match[4]),
         y2: parseFloat(match[5]),
+        // match[6] is the confidence value, which we ignore
       });
+    } else {
+      // Log lines that don't match for debugging
+      console.warn("Failed to parse coordinate line:", line);
     }
   }
 

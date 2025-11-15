@@ -29,7 +29,7 @@ export default function VideoFeed() {
   const coloredVideoRef = useRef<HTMLVideoElement>(null);
   const motionVideoRef = useRef<HTMLVideoElement>(null);
   const transformContainerRef = useRef<HTMLDivElement>(null);
-
+  const prevActiveMotionDetectionRef = useRef<boolean | undefined>(undefined);
   // State for coordinates and position
   const [coordinates, setCoordinates] = useState<DronePosition[]>([]);
   const [normalizedPosition, setNormalizedPosition] =
@@ -50,6 +50,60 @@ export default function VideoFeed() {
         console.error("Failed to load coordinates:", error);
       });
   }, [dataId]);
+
+  // Sync video timestamps when switching between colored and motion videos
+  useEffect(() => {
+    // Skip sync on initial mount
+    if (prevActiveMotionDetectionRef.current === undefined) {
+      prevActiveMotionDetectionRef.current = activeMotionDetection;
+      return;
+    }
+
+    // Only sync if the active video mode actually changed
+    if (prevActiveMotionDetectionRef.current === activeMotionDetection) {
+      return;
+    }
+
+    // Get the previously active video
+    const prevVideo = prevActiveMotionDetectionRef.current
+      ? motionVideoRef.current
+      : coloredVideoRef.current;
+
+    // Get the newly active video
+    const newVideo = activeMotionDetection
+      ? motionVideoRef.current
+      : coloredVideoRef.current;
+
+    // Sync the timestamp if both videos are available and the previous video has a valid time
+    let cleanup: (() => void) | undefined;
+    if (prevVideo && newVideo && prevVideo.readyState >= 2) {
+      const currentTime = prevVideo.currentTime;
+      if (currentTime > 0 && !isNaN(currentTime)) {
+        // Wait for the new video to be ready before setting the time
+        if (newVideo.readyState >= 2) {
+          newVideo.currentTime = currentTime;
+        } else {
+          // If not ready yet, wait for loadeddata event
+          const handleLoadedData = () => {
+            newVideo.currentTime = currentTime;
+            newVideo.removeEventListener("loadeddata", handleLoadedData);
+          };
+          newVideo.addEventListener("loadeddata", handleLoadedData);
+
+          // Cleanup function to remove event listener if component unmounts or effect re-runs
+          cleanup = () => {
+            newVideo.removeEventListener("loadeddata", handleLoadedData);
+          };
+        }
+      }
+    }
+
+    // Update the ref for next time
+    prevActiveMotionDetectionRef.current = activeMotionDetection;
+
+    // Return cleanup function if we added an event listener
+    return cleanup;
+  }, [activeMotionDetection]);
 
   // Track video time and update position using requestAnimationFrame for smooth updates
   useEffect(() => {
@@ -129,7 +183,7 @@ export default function VideoFeed() {
     if (projectileCanvasRef.current) {
       projectileCanvasRef.current.addProjectile(x, y);
     }
-    if (scenarioState === "fireUnlocked") {
+    if (scenarioState === "mission") {
       triggerAction("fired a projectile but missed");
     }
   };
@@ -202,7 +256,7 @@ export default function VideoFeed() {
         )}
         <div
           ref={transformContainerRef}
-          className="relative size-full flex transition-transform duration-100"
+          className="relative size-full flex transition-transform duration-200"
           style={{
             transform: lockTargetTransform,
             transformOrigin: "center center",
@@ -210,7 +264,7 @@ export default function VideoFeed() {
         >
           <video
             ref={coloredVideoRef}
-            src={`/data/${dataId}/colored.webm`}
+            src={`/data/${dataId}/colored.mp4`}
             autoPlay
             muted
             loop
@@ -221,7 +275,7 @@ export default function VideoFeed() {
           ></video>
           <video
             ref={motionVideoRef}
-            src={`/data/${dataId}/motion.webm`}
+            src={`/data/${dataId}/motion.mp4`}
             autoPlay
             muted
             loop
@@ -328,6 +382,7 @@ export default function VideoFeed() {
             <ProjectileCanvas
               onMouseClick={handleProjectileClick}
               ref={projectileCanvasRef}
+              normalizedPosition={normalizedPosition}
             />
           )}
         </div>

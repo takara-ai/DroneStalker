@@ -28,6 +28,7 @@ export default function TextingChat() {
     unlockAll,
   } = useStore();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const initialMessageSentRef = useRef(false);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -44,7 +45,6 @@ export default function TextingChat() {
       switch (toolName) {
         case "unlockFire":
           setUnlockedFire(true);
-          // State transition happens in setUnlockedFire setter
           break;
         case "unlockAutoFire":
           setUnlockedAutoFire(true);
@@ -105,10 +105,12 @@ export default function TextingChat() {
   // Initialize scenario: send initial message to Commander on mount
   useEffect(() => {
     if (
+      !initialMessageSentRef.current &&
       messages.length === 0 &&
       scenarioState === "intro" &&
       status === "ready"
     ) {
+      initialMessageSentRef.current = true;
       setTimeout(() => {
         sendMessage({
           text: "Ready for mission briefing.",
@@ -128,7 +130,7 @@ export default function TextingChat() {
       }, 2000);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount
+  }, [messages.length, scenarioState, status]); // Include dependencies to check conditions
 
   // Add new commander messages to TTS queue (only when complete)
   useEffect(() => {
@@ -164,6 +166,11 @@ export default function TextingChat() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Don't allow sending if status is not ready
+    if (status !== "ready") {
+      return;
+    }
 
     // Check if user said "MIRROR" to unlock everything
     if (input.trim() === "MIRROR") {
@@ -223,6 +230,7 @@ export default function TextingChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Message..."
+          disabled={status !== "ready"}
         />
       </form>
     </div>

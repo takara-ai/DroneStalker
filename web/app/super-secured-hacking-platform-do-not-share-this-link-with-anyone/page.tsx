@@ -14,6 +14,7 @@ import VideoFeed from "./main-panel/video-feed";
 import TextingChat from "./texting-chat";
 import You from "./you";
 import { codes } from "./main-panel/codes";
+import { highlightId } from "@/lib/highlight";
 
 export default function Page() {
   const tab = useStore((state) => state.tab);
@@ -62,11 +63,13 @@ export default function Page() {
       setUnlockedMotion(true);
       setScenarioState("motionDetection");
       triggerAction("completed motion detection code");
+      highlightId("motion-detection");
     } else if (codeKey === "tracking" && scenarioState === "tracking") {
       // Tracking code completed - automatically unlock tracking
       setUnlockedTracking(true);
       setScenarioState("trackingComplete");
       triggerAction("completed tracking code");
+      highlightId(["tracking", "lock-target"]);
     } else if (
       codeKey === "positionPrediction" &&
       scenarioState === "positionPrediction"
@@ -75,6 +78,7 @@ export default function Page() {
       setUnlockedMotionPrediction(true);
       setScenarioState("positionPredictionComplete");
       triggerAction("completed position prediction code");
+      highlightId("motion-prediction");
     }
   };
 
@@ -92,11 +96,15 @@ export default function Page() {
         idx++;
         // Wait longer before opening 'controls' (after chat)
         if (idx === 3) {
-          setTimeout(openNext, 4000);
+          setTimeout(openNext, 6000);
         } else if (idx < 3) {
           setTimeout(openNext, 500);
         } else if (idx < ids.length) {
           setTimeout(openNext, 1000);
+        } else {
+          if (useStore.getState().scenarioState === "intro") {
+            highlightId("camera-feed");
+          }
         }
       }
     }
@@ -115,6 +123,7 @@ export default function Page() {
         >
           <nav className="flex gap-2 ">
             <Button
+              id="tab-video"
               onClick={() => setTab("video")}
               className={cn(
                 "uppercase",
@@ -124,6 +133,7 @@ export default function Page() {
               Camera view
             </Button>
             <Button
+              id="tab-motionDetection"
               onClick={() => setTab("motionDetection")}
               className={cn(
                 "uppercase",
@@ -137,6 +147,7 @@ export default function Page() {
               )}
             </Button>
             <Button
+              id="tab-tracking"
               onClick={() => setTab("tracking")}
               className={cn(
                 "uppercase",
@@ -150,6 +161,7 @@ export default function Page() {
               )}
             </Button>
             <Button
+              id="tab-positionPrediction"
               onClick={() => setTab("positionPrediction")}
               className={cn(
                 "uppercase",
@@ -163,6 +175,7 @@ export default function Page() {
               )}
             </Button>
             <Button
+              id="tab-credits"
               onClick={() => setTab("credits")}
               className={cn(
                 "uppercase",
