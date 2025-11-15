@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 type UnlockStore = {
+  scenarioState: string;
   unlockedMotion: boolean;
   unlockedFire: boolean;
   unlockedTracking: boolean;
@@ -18,6 +19,8 @@ type UnlockStore = {
   typingSpeedIndex: number; // 0-5, where 0 is slowest and 5 is fastest
   codeProgress: number; // 0-100, progress of code typing
   codeTypedCode: string; // The actual typed code string
+  ttsQueue: string[]; // Queue of messages from commander to be spoken via text-to-speech
+  setScenarioState: (value: string) => void;
   setUnlockedMotion: (value: boolean) => void;
   setUnlockedFire: (value: boolean) => void;
   setUnlockedTracking: (value: boolean) => void;
@@ -35,9 +38,37 @@ type UnlockStore = {
   setTypingSpeedIndex: (value: number) => void;
   setCodeProgress: (value: number) => void;
   setCodeTypedCode: (value: string) => void;
+  addToTtsQueue: (message: string) => void;
+  popFromTtsQueue: () => string | undefined;
+};
+
+export const scenarioStates = {
+  intro:
+    "You are the Commander guiding the user in a high-security military drone defense simulation. The mission is classified. The first step is to introduce yourself and unlock the camera feed for the user. Instruct the user to activate the camera feed by toggling it on.",
+  mission:
+    "With the camera feed active, provide the user with crucial mission context. Inform them that their task is to eliminate an enemy drone breaching our airspace. Emphasize the urgency and threat the drone poses. After briefing the mission, immediately unlock the 'Fire' ability using the unlockFire tool so the user can attempt to shoot the drone.",
+  fireUnlocked:
+    "The 'Fire' ability has been unlocked. Instruct the user to toggle on 'left click to fire' and attempt to shoot the enemy drone manually. Note that the drone moves too quickly for manual targeting, and prompt the user to experience this difficulty. After they try and fail, unlock the Code tab using the unlockCode tool.",
+  codeUnlocked:
+    "The Code tab has been unlocked. Clearly instruct the user to open the Code tab to develop an automated interception solution.",
+  firstCode:
+    "The user has entered the Code tab. As the Commander, task them with writing software to extract and track the drone's position from the camera feed (motion detection). Clearly specify that completion of this code is required before proceeding.",
+  motionDetection:
+    "The motion detection code has been completed. Use the unlockMotion tool to unlock the 'Motion Detection' toggle button. Then instruct the user to enable motion detection by toggling it on.",
+  tracking:
+    "The next step is critical. Instruct the user to create a tracking program that leverages the motion detection data to accurately follow the drone's position. Wait for the user to complete this tracking code.",
+  trackingComplete:
+    "The tracking code has been completed. Use the unlockTracking tool to unlock the 'Tracking' toggle button. Guide the user to enable tracking, which allows continuous crosshair lock on the drone. Suggest that the user test the tracking system and attempt to fire.",
+  positionPrediction:
+    "If shots are missing due to drone speed, explain to the user that they must implement position prediction using tracking data. Instruct the user to write code that predicts where the drone will be, and wait for them to finish this stage.",
+  positionPredictionComplete:
+    "The position prediction code has been completed. Use the unlockMotionPrediction tool to unlock the 'Position Prediction' toggle. Instruct the user to activate this feature, improving crosshair accuracy. Encourage another attempt at firing.",
+  success:
+    "The user has successfully intercepted the drone. Congratulate them formally and use the unlockCredits tool to unlock the Credits tab as a reward.",
 };
 
 export const useStore = create<UnlockStore>((set) => ({
+  scenarioState: "intro",
   unlockedMotion: false,
   unlockedFire: false,
   unlockedTracking: false,
@@ -46,7 +77,7 @@ export const useStore = create<UnlockStore>((set) => ({
   unlockedCode: false,
   unlockedCredits: false,
   tab: "video",
-  activeCamera: true,
+  activeCamera: false,
   activeMotionDetection: false,
   activeFire: false,
   activeTracking: false,
@@ -55,6 +86,8 @@ export const useStore = create<UnlockStore>((set) => ({
   typingSpeedIndex: 0, // Start at slowest speed
   codeProgress: 0, // Start at 0% progress
   codeTypedCode: "", // Start with empty code
+  ttsQueue: [], // Start with empty TTS queue
+  setScenarioState: (value) => set({ scenarioState: value }),
   setUnlockedMotion: (value) => set({ unlockedMotion: value }),
   setUnlockedFire: (value) => set({ unlockedFire: value }),
   setUnlockedTracking: (value) => set({ unlockedTracking: value }),
@@ -64,7 +97,18 @@ export const useStore = create<UnlockStore>((set) => ({
   setUnlockedCode: (value) => set({ unlockedCode: value }),
   setUnlockedCredits: (value) => set({ unlockedCredits: value }),
   setTab: (value) => set({ tab: value }),
-  setActiveCamera: (value) => set({ activeCamera: value }),
+  setActiveCamera: (value) => {
+    set((state) => {
+      // If camera is being turned on and we're in intro state, progress to mission
+      if (value && state.scenarioState === "intro") {
+        return {
+          activeCamera: value,
+          scenarioState: "mission",
+        };
+      }
+      return { activeCamera: value };
+    });
+  },
   setActiveMotionDetection: (value) => {
     if (value) {
       set({
@@ -83,4 +127,21 @@ export const useStore = create<UnlockStore>((set) => ({
   setTypingSpeedIndex: (value) => set({ typingSpeedIndex: value }),
   setCodeProgress: (value) => set({ codeProgress: value }),
   setCodeTypedCode: (value) => set({ codeTypedCode: value }),
+  addToTtsQueue: (message) =>
+    set((state) => ({
+      ttsQueue: [...state.ttsQueue, message],
+    })),
+  popFromTtsQueue: () => {
+    let message: string | undefined;
+    set((state) => {
+      if (state.ttsQueue.length === 0) {
+        message = undefined;
+        return state;
+      }
+      const [first, ...rest] = state.ttsQueue;
+      message = first;
+      return { ttsQueue: rest };
+    });
+    return message;
+  },
 }));

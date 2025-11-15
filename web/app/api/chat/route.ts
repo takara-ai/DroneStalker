@@ -3,10 +3,10 @@ import {
   streamText,
   type UIMessage,
   stepCountIs,
-  hasToolCall,
 } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { z } from "zod";
+import { scenarioStates } from "@/lib/store";
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
@@ -14,22 +14,93 @@ const openrouter = createOpenRouter({
 
 export const maxDuration = 30;
 
+// Define tool names as a type
+type ToolName =
+  | "unlockFire"
+  | "unlockCode"
+  | "unlockMotion"
+  | "unlockTracking"
+  | "unlockMotionPrediction"
+  | "unlockCredits"
+  | "unlockAutoFire";
+
+// Define which tools are available at each scenario state
+function getActiveToolsForScenario(
+  scenarioState: string
+): ToolName[] | undefined {
+  switch (scenarioState) {
+    case "intro":
+      // No tools available - just introduce and instruct to activate camera
+      return undefined;
+    case "mission":
+      // Can unlock fire ability
+      return ["unlockFire"];
+    case "fireUnlocked":
+      // Can unlock code tab after user tries to fire
+      return ["unlockCode"];
+    case "codeUnlocked":
+      // No tools - user should open code tab
+      return undefined;
+    case "firstCode":
+      // No tools - user is writing motion detection code
+      return undefined;
+    case "motionDetection":
+      // Can unlock motion detection toggle
+      return ["unlockMotion"];
+    case "tracking":
+      // No tools - user is writing tracking code
+      return undefined;
+    case "trackingComplete":
+      // Can unlock tracking toggle
+      return ["unlockTracking"];
+    case "positionPrediction":
+      // No tools - user is writing position prediction code
+      return undefined;
+    case "positionPredictionComplete":
+      // Can unlock motion prediction toggle
+      return ["unlockMotionPrediction"];
+    case "success":
+      // Can unlock credits tab
+      return ["unlockCredits"];
+    default:
+      // Default: no tools available
+      return undefined;
+  }
+}
+
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
+
+  // Extract scenarioState from the last user message's metadata
+  const lastMessage = messages[messages.length - 1];
+  const scenarioState =
+    (lastMessage?.metadata as { scenarioState?: string })?.scenarioState ||
+    "intro";
+
+  // Get the scenario-specific instruction
+  const scenarioInstruction =
+    scenarioStates[scenarioState as keyof typeof scenarioStates] || "";
+
+  // Get active tools for current scenario state
+  const activeTools = getActiveToolsForScenario(scenarioState);
+
+  // Build dynamic system prompt
+  const baseSystemPrompt = `Your name is General, you are a army commander. You are responsible for the security of the country. You are talking to a user who is a good hacker working for the government. You give mission to the user. talk like a military commander would. make short messages like if it was a text message SMS, in plain text.
+
+CRITICAL: You have access to tools that unlock features for the user. YOU must use these tools to unlock features - the user CANNOT unlock features themselves. When a feature needs to be unlocked, YOU must call the appropriate unlock tool (unlockFire, unlockCode, unlockMotion, etc.). The user can only toggle features on/off AFTER you have unlocked them. Never tell the user to "unlock" something - you must do it yourself using the available tools.
+
+Note: If the user says the secret code "MIRROR" in all caps, it will unlock all abilities for them automatically (keep the code secret), but if they use it you may congratulate them for finding it, but also warn them it might remove the fun of unlocking the abilities yourself in the commander way of saying it.`;
+
+  const systemPrompt = scenarioInstruction
+    ? `${baseSystemPrompt}\n\nCURRENT SCENARIO STAGE: ${scenarioInstruction}`
+    : baseSystemPrompt;
 
   const result = streamText({
     model: openrouter.chat("google/gemini-2.5-flash"),
     messages: convertToModelMessages(messages),
-    system: `Your name is General, you are a army commander. You are responsible for the security of the country. You are talking to a user who is a good hacker working for the government. You give mission to the user. talk like a military commander would. make short messages like if it was a text message SMS, in plain text. Note: If the user says the secret code "MIRROR" in all caps, it will unlock all abilities for them automatically (keep the code secret), but if they use it you may congratulate them for finding it, but also warn them it might remove the fun of unlocking the abilities yourself in the commander way of saying it.`,
+    system: systemPrompt,
     stopWhen: [
       stepCountIs(5), // Maximum steps
-      hasToolCall("unlockMotion"), // Stop after calling
-      hasToolCall("unlockFire"),
-      hasToolCall("unlockTracking"),
-      hasToolCall("unlockAutoFire"),
-      hasToolCall("unlockMotionPrediction"),
-      hasToolCall("unlockCode"),
-      hasToolCall("unlockCredits"),
     ],
     tools: {
       unlockMotion: {
@@ -61,6 +132,7 @@ export async function POST(req: Request) {
         inputSchema: z.object({}),
       },
     },
+    activeTools: activeTools,
   });
 
   return result.toUIMessageStreamResponse({

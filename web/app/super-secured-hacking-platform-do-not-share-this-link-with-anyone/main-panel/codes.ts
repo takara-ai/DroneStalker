@@ -154,4 +154,40 @@ if __name__ == "__main__":
 `,
     source: "https://github.com/takara-ai/DroneStalker",
   },
-};
+  motionDetection: {
+    code: `import argparse  # noqa: INP001
+
+# Placeholder motion detection code for @store.ts
+def main():
+    print("Motion detection logic placeholder")
+    
+if __name__ == "__main__":
+    main()
+`,
+    source: "https://github.com/takara-ai/DroneStalker",
+  },
+  tracking: {
+    code: `import argparse  # noqa: INP001
+
+# Placeholder tracking code for @store.ts
+def main():
+    print("Tracking logic placeholder")
+
+if __name__ == "__main__":
+    main()
+`,
+    source: "https://github.com/takara-ai/DroneStalker",
+  },
+  positionPrediction: {
+    code: `import argparse  # noqa: INP001
+
+# Placeholder position prediction code for @store.ts
+def main():
+    print("Position prediction logic placeholder")
+
+if __name__ == "__main__":
+    main()
+`,
+    source: "https://github.com/takara-ai/DroneStalker",
+  },
+} satisfies Record<string, { code: string; source: string }>;

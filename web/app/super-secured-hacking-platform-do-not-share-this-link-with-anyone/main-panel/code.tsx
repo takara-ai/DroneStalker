@@ -13,16 +13,15 @@ import {
 } from "react";
 import { jsx, jsxs } from "react/jsx-runtime";
 import { codeToHast } from "shiki/bundle/web";
-import { codes } from "./codes";
 import { useStore } from "@/lib/store";
 import Link from "next/link";
 
 // Speed thresholds (milliseconds between key presses)
 // Faster typing = lower interval = more characters per key
 const SPEED_THRESHOLDS = [
-  { maxInterval: 50, charsPerKey: 50 }, // Super fast
-  { maxInterval: 100, charsPerKey: 20 }, // Very fast
-  { maxInterval: 300, charsPerKey: 10 }, // Fast
+  { maxInterval: 20, charsPerKey: 30 }, // Super fast
+  { maxInterval: 50, charsPerKey: 20 }, // Very fast
+  { maxInterval: 100, charsPerKey: 10 }, // Fast
   { maxInterval: 500, charsPerKey: 5 }, // Medium
   { maxInterval: 1000, charsPerKey: 2 }, // Slow
   { maxInterval: Infinity, charsPerKey: 1 }, // Very slow
@@ -31,10 +30,19 @@ const SPEED_THRESHOLDS = [
 const SLIDING_WINDOW_SIZE = 10; // Track last 10 key presses
 const INACTIVITY_THRESHOLD = 500; // Reset to slowest speed after 500ms of inactivity
 
-export default function Code() {
+interface CodeProps {
+  code: string;
+  source: string;
+  onComplete?: () => void;
+}
+
+export default function Code({
+  code: targetCode,
+  source,
+  onComplete,
+}: CodeProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const targetCode = codes.fan.code;
   const {
     codeProgress,
     codeTypedCode,
@@ -45,6 +53,32 @@ export default function Code() {
 
   // Initialize currentPositionRef from stored typed code
   const currentPositionRef = useRef(codeTypedCode.length);
+  const previousTargetCodeRef = useRef(targetCode);
+  const hasCompletedRef = useRef(false);
+
+  // Reset progress when target code changes
+  useEffect(() => {
+    // If the target code changed, reset everything
+    if (previousTargetCodeRef.current !== targetCode) {
+      previousTargetCodeRef.current = targetCode;
+      currentPositionRef.current = 0;
+      setCodeTypedCode("");
+      setCodeProgress(0);
+      hasCompletedRef.current = false; // Reset completion flag
+      return;
+    }
+
+    // Validate that typed code is still a valid prefix of target code
+    // If not, reset (this handles edge cases where state might get corrupted)
+    if (codeTypedCode && !targetCode.startsWith(codeTypedCode)) {
+      currentPositionRef.current = 0;
+      setCodeTypedCode("");
+      setCodeProgress(0);
+      hasCompletedRef.current = false; // Reset completion flag
+    } else {
+      currentPositionRef.current = codeTypedCode.length;
+    }
+  }, [targetCode, codeTypedCode, setCodeTypedCode, setCodeProgress]);
 
   // Sync currentPositionRef when codeTypedCode changes from outside
   useEffect(() => {
@@ -127,6 +161,14 @@ export default function Code() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [codeTypedCode]);
+
+  // Check for completion when progress changes (handles cases where progress updates from other sources)
+  useEffect(() => {
+    if (codeProgress >= 100 && !hasCompletedRef.current && onComplete) {
+      hasCompletedRef.current = true;
+      onComplete();
+    }
+  }, [codeProgress, onComplete]);
 
   // Periodically update speed index even when not typing (to decay speed)
   useEffect(() => {
@@ -219,7 +261,14 @@ export default function Code() {
 
     // Update progress
     const progress = (currentPositionRef.current / targetCode.length) * 100;
-    setCodeProgress(Math.min(100, Math.round(progress)));
+    const roundedProgress = Math.min(100, Math.round(progress));
+    setCodeProgress(roundedProgress);
+
+    // Trigger completion callback when reaching 100%
+    if (roundedProgress >= 100 && !hasCompletedRef.current && onComplete) {
+      hasCompletedRef.current = true;
+      onComplete();
+    }
   };
 
   // Keep input focused when clicking on the code area
@@ -244,11 +293,7 @@ export default function Code() {
       </div>
       <div className="absolute right-6 top-2 text-sm max-w-xs text-pretty text-right bg-background/50">
         (actual working code we wrote to solve the challenge, available on{" "}
-        <Link
-          href={codes.fan.source}
-          target="_blank"
-          className="text-white underline"
-        >
+        <Link href={source} target="_blank" className="text-white underline">
           GitHub
         </Link>
         )
