@@ -22,13 +22,13 @@ class DroneStalkerModel(nn.Module):
         - kinematic_features: [batch, Np, 4] - Position and velocity features (z-score normalized)
 
     Output:
-        - predictions: [batch, Nf, 4] - Future bounding boxes (x1, y1, x2, y2) for 18 frames
+        - predictions: [batch, Nf, 4] - Future bounding boxes (x1, y1, x2, y2) for 12 frames
     """
-    def __init__(self, Np=12, Nf=18, input_dim=132, num_layers=4, num_heads=4, dim_feedforward=512, dropout=0.1):
+    def __init__(self, Np=12, Nf=12, input_dim=132, num_layers=4, num_heads=4, dim_feedforward=512, dropout=0.1):
         super(DroneStalkerModel, self).__init__()
 
         self.Np = Np  # Observation window (12 frames = 0.4s at 30fps)
-        self.Nf = Nf  # Prediction horizon (18 frames = 0.6s at 30fps)
+        self.Nf = Nf  # Prediction horizon (12 frames = 0.4s at 30fps)
         self.input_dim = input_dim  # 132 = 4 kinematic + 128 event features
 
         # === CNN Event Feature Encoder (Step 2) ===
@@ -67,8 +67,10 @@ class DroneStalkerModel(nn.Module):
         )
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
 
-        # === Learnable Future Query Tokens ===
-        # These represent the 18 future timesteps to be predicted
+        # === Learnable Query Tokens ===
+        # Past reconstruction queries (Np frames)
+        self.past_query = nn.Parameter(torch.randn(Np, input_dim))
+        # Future prediction queries (Nf frames)
         self.future_query = nn.Parameter(torch.randn(Nf, input_dim))
 
         # === Prediction Head ===
@@ -82,14 +84,16 @@ class DroneStalkerModel(nn.Module):
 
     def forward(self, event_images, kinematic_features):
         """
-        Forward pass: CNN feature extraction + Feature fusion + Transformer prediction.
+        Forward pass: CNN feature extraction + Feature fusion + Transformer prediction + Reconstruction.
 
         Args:
             event_images (torch.Tensor): [batch, Np, 1, 64, 64] - Event frame sequence
             kinematic_features (torch.Tensor): [batch, Np, 4] - Normalized kinematic features
 
         Returns:
-            torch.Tensor: [batch, Nf, 4] - Predicted bounding boxes for future frames
+            tuple: (reconstructed_past, predicted_future)
+                - reconstructed_past: [batch, Np, 4] - Reconstructed bounding boxes for observation window
+                - predicted_future: [batch, Nf, 4] - Predicted bounding boxes for future frames
         """
         batch_size, Np, _, _, _ = event_images.shape
 
@@ -126,24 +130,75 @@ class DroneStalkerModel(nn.Module):
         # Process historical sequence through encoder
         encoder_output = self.transformer_encoder(input_sequence_encoded)  # [batch, Np, 132]
 
-        # === Step 5: Transformer Decoding ===
+        # === Step 5a: Reconstruction (Decode Past) ===
+        # Broadcast past query tokens across batch dimension
+        past_queries = self.past_query.unsqueeze(0).repeat(batch_size, 1, 1)  # [batch, Np, 132]
+
+        # Decoder reconstructs observation window using encoder memory
+        decoder_output_past = self.transformer_decoder(past_queries, encoder_output)  # [batch, Np, 132]
+
+        # Project to 4-dim bounding box coordinates
+        reconstructed_past = self.prediction_head(decoder_output_past)  # [batch, Np, 4]
+
+        # === Step 5b: Prediction (Decode Future) ===
         # Broadcast future query tokens across batch dimension
         future_queries = self.future_query.unsqueeze(0).repeat(batch_size, 1, 1)  # [batch, Nf, 132]
 
         # Decoder predicts future sequence using encoder memory
-        decoder_output = self.transformer_decoder(future_queries, encoder_output)  # [batch, Nf, 132]
+        decoder_output_future = self.transformer_decoder(future_queries, encoder_output)  # [batch, Nf, 132]
 
-        # === Step 6: Bounding Box Prediction ===
         # Project to 4-dim bounding box coordinates
-        predicted_trajectory = self.prediction_head(decoder_output)  # [batch, Nf, 4]
+        predicted_future = self.prediction_head(decoder_output_future)  # [batch, Nf, 4]
 
-        return predicted_trajectory
+        return reconstructed_past, predicted_future
+
+
+class FREDLoss(nn.Module):
+    """
+    Custom loss function for FRED trajectory forecasting.
+
+    L = L_Nf + λ * L_Np
+
+    Where:
+    - L_Nf: Forecasting loss (L2 distance for future predictions)
+    - L_Np: Reconstruction loss (L2 distance for past reconstruction)
+    - λ: Scaling coefficient (0.5 in FRED benchmark)
+    """
+    def __init__(self, lambda_recon=0.5):
+        super(FREDLoss, self).__init__()
+        self.lambda_recon = lambda_recon
+        self.mse_loss = nn.MSELoss()
+
+    def forward(self, reconstructed_past, predicted_future, ground_truth_past, ground_truth_future):
+        """
+        Compute the total FRED loss.
+
+        Args:
+            reconstructed_past: [batch, Np, 4] - Model's reconstruction of observation window
+            predicted_future: [batch, Nf, 4] - Model's prediction of future frames
+            ground_truth_past: [batch, Np, 4] - Ground truth bounding boxes for observation window
+            ground_truth_future: [batch, Nf, 4] - Ground truth bounding boxes for future frames
+
+        Returns:
+            tuple: (total_loss, forecasting_loss, reconstruction_loss)
+        """
+        # L_Nf: Forecasting loss (L2 distance / RMSE)
+        # MSE = mean squared error, sqrt(MSE) = RMSE = L2 distance
+        forecasting_loss = torch.sqrt(self.mse_loss(predicted_future, ground_truth_future))
+
+        # L_Np: Reconstruction loss (L2 distance / RMSE)
+        reconstruction_loss = torch.sqrt(self.mse_loss(reconstructed_past, ground_truth_past))
+
+        # Total loss: L = L_Nf + λ * L_Np
+        total_loss = forecasting_loss + self.lambda_recon * reconstruction_loss
+
+        return total_loss, forecasting_loss, reconstruction_loss
 
 
 def get_data() -> list[dict]:
     # Load dataset
     raw_data = []
-    for x in [0, 1]:
+    for x in range(11):
         with open(f"../../data/{x}/coordinates.txt", "r") as coord_file:
             lines = coord_file.readlines()
         for line in lines:
@@ -190,7 +245,7 @@ def get_kinematic_features(sample1: dict, sample2: dict, meanv: tuple[float, flo
     x2, y2 = get_center_coordinates(sample2)
     dx = x2 - x1
     dy = y2 - y1
-    dt = sample2["time"] - sample1["time"]
+    dt = max((sample2["time"] - sample1["time"]), 0.0001)
     vx = dx / dt # Velocity in pixels per second (px/s)
     vy = dy / dt # Velocity in pixels per second (px/s)
 
@@ -208,7 +263,7 @@ def get_mean_velocity(data: list[dict]) -> tuple[float, float]:
     for i in range(len(data) - 1):
         x1, y1 = get_center_coordinates(data[i])
         x2, y2 = get_center_coordinates(data[i + 1])
-        dt = data[i + 1]["time"] - data[i]["time"]
+        dt = max((data[i + 1]["time"] - data[i]["time"]), 0.0001)
         vx = (x2 - x1) / dt
         vy = (y2 - y1) / dt
         total_vx += vx
@@ -225,7 +280,7 @@ def get_std_velocity(data: list[dict], mean: tuple[float, float]) -> tuple[float
     for i in range(len(data) - 1):
         x1, y1 = get_center_coordinates(data[i])
         x2, y2 = get_center_coordinates(data[i + 1])
-        dt = data[i + 1]["time"] - data[i]["time"]
+        dt = max((data[i + 1]["time"] - data[i]["time"]), 0.0001)
         vx = (x2 - x1) / dt
         vy = (y2 - y1) / dt
         sum_sq_vx += (vx - mean_vx) ** 2
@@ -316,11 +371,415 @@ def create_sinusoidal_positional_encoding(sequence_length: int, dimension: int) 
     
     return P_matrix
 
-def main():
-    # Event features
 
-    # Transformer encoder decoder
-    pass
+class DroneTrajectoryDataset(torch.utils.data.Dataset):
+    """
+    PyTorch Dataset for FRED drone trajectory prediction with reconstruction.
+
+    Creates sliding windows of Np+Nf consecutive frames.
+    Returns:
+    - Observation window (Np frames): event images + kinematic features + ground truth past boxes
+    - Prediction target (Nf frames): ground truth future boxes
+    """
+    def __init__(self, data, Np=12, Nf=12):
+        self.data = data
+        self.Np = Np
+        self.Nf = Nf
+        self.sequence_length = Np + Nf
+
+        # Compute normalization statistics
+        print("Computing normalization statistics...")
+        self.mean_velocity = get_mean_velocity(data)
+        self.std_velocity = get_std_velocity(data, self.mean_velocity)
+        self.mean_coordinates = get_mean_coordinates(data)
+        self.std_coordinates = get_std_coordinates(data, self.mean_coordinates)
+
+        # Find valid sequence indices
+        self.valid_indices = []
+        for i in range(len(data) - self.sequence_length + 1):
+            is_valid = True
+            for j in range(i, i + self.sequence_length - 1):
+                time_diff = data[j + 1]["time"] - data[j]["time"]
+                if time_diff > 0.1:  # 100ms gap indicates missing frames
+                    is_valid = False
+                    break
+            if is_valid:
+                self.valid_indices.append(i)
+
+        print(f"Created {len(self.valid_indices)} valid sequences from {len(data)} frames")
+
+    def __len__(self):
+        return len(self.valid_indices)
+
+    def __getitem__(self, idx):
+        start_idx = self.valid_indices[idx]
+
+        # Extract observation window (Np frames) and future frames (Nf frames)
+        obs_frames = self.data[start_idx : start_idx + self.Np]
+        future_frames = self.data[start_idx + self.Np : start_idx + self.sequence_length]
+
+        # === Event Images ===
+        event_images = []
+        for sample in obs_frames:
+            event_tensor = get_event_feature(sample)
+            if event_tensor is None:
+                event_tensor = torch.zeros(64, 64)
+            event_images.append(event_tensor.unsqueeze(0))
+        event_images = torch.stack(event_images)  # [Np, 1, 64, 64]
+
+        # === Kinematic Features ===
+        kinematic_features = []
+        for i in range(len(obs_frames) - 1):
+            features = get_kinematic_features(
+                obs_frames[i], obs_frames[i + 1],
+                self.mean_velocity, self.std_velocity,
+                self.mean_coordinates, self.std_coordinates
+            )
+            kinematic_features.append(features)
+        # Duplicate last velocity for final frame
+        kinematic_features.append(kinematic_features[-1])
+        kinematic_features = torch.tensor(kinematic_features, dtype=torch.float32)  # [Np, 4]
+
+        # === Ground Truth Past (for reconstruction loss) ===
+        ground_truth_past = []
+        for sample in obs_frames:
+            bbox = [sample["x1"], sample["y1"], sample["x2"], sample["y2"]]
+            ground_truth_past.append(bbox)
+        ground_truth_past = torch.tensor(ground_truth_past, dtype=torch.float32)  # [Np, 4]
+
+        # === Ground Truth Future (for forecasting loss) ===
+        ground_truth_future = []
+        for sample in future_frames:
+            bbox = [sample["x1"], sample["y1"], sample["x2"], sample["y2"]]
+            ground_truth_future.append(bbox)
+        ground_truth_future = torch.tensor(ground_truth_future, dtype=torch.float32)  # [Nf, 4]
+
+        return event_images, kinematic_features, ground_truth_past, ground_truth_future
+
+
+def train_model(model, train_loader, val_loader, num_epochs=50, learning_rate=1e-4, device='cuda'):
+    """
+    Training loop for DroneStalkerModel with FRED loss (forecasting + reconstruction).
+    """
+    model = model.to(device)
+    criterion = FREDLoss(lambda_recon=0.5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=5, verbose=True
+    )
+
+    best_val_loss = float('inf')
+
+    for epoch in range(num_epochs):
+        # === Training ===
+        model.train()
+        train_loss = 0.0
+        train_forecast_loss = 0.0
+        train_recon_loss = 0.0
+
+        for batch_idx, (event_images, kinematic_features, gt_past, gt_future) in enumerate(train_loader):
+            event_images = event_images.to(device)
+            kinematic_features = kinematic_features.to(device)
+            gt_past = gt_past.to(device)
+            gt_future = gt_future.to(device)
+
+            # Forward pass
+            reconstructed_past, predicted_future = model(event_images, kinematic_features)
+
+            # Compute loss
+            loss, forecast_loss, recon_loss = criterion(reconstructed_past, predicted_future, gt_past, gt_future)
+
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            train_loss += loss.item()
+            train_forecast_loss += forecast_loss.item()
+            train_recon_loss += recon_loss.item()
+
+            if (batch_idx + 1) % 10 == 0:
+                print(f"Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx+1}/{len(train_loader)}], "
+                      f"Loss: {loss.item():.4f}, Forecast: {forecast_loss.item():.4f}, Recon: {recon_loss.item():.4f}")
+
+        avg_train_loss = train_loss / len(train_loader)
+        avg_train_forecast = train_forecast_loss / len(train_loader)
+        avg_train_recon = train_recon_loss / len(train_loader)
+
+        # === Validation ===
+        model.eval()
+        val_loss = 0.0
+        val_forecast_loss = 0.0
+        val_recon_loss = 0.0
+
+        with torch.no_grad():
+            for event_images, kinematic_features, gt_past, gt_future in val_loader:
+                event_images = event_images.to(device)
+                kinematic_features = kinematic_features.to(device)
+                gt_past = gt_past.to(device)
+                gt_future = gt_future.to(device)
+
+                reconstructed_past, predicted_future = model(event_images, kinematic_features)
+                loss, forecast_loss, recon_loss = criterion(reconstructed_past, predicted_future, gt_past, gt_future)
+
+                val_loss += loss.item()
+                val_forecast_loss += forecast_loss.item()
+                val_recon_loss += recon_loss.item()
+
+        avg_val_loss = val_loss / len(val_loader)
+        avg_val_forecast = val_forecast_loss / len(val_loader)
+        avg_val_recon = val_recon_loss / len(val_loader)
+
+        print(f"\nEpoch [{epoch+1}/{num_epochs}]")
+        print(f"  Train - Total: {avg_train_loss:.4f}, Forecast: {avg_train_forecast:.4f}, Recon: {avg_train_recon:.4f}")
+        print(f"  Val   - Total: {avg_val_loss:.4f}, Forecast: {avg_val_forecast:.4f}, Recon: {avg_val_recon:.4f}")
+        print("-" * 70)
+
+        scheduler.step(avg_val_loss)
+
+        # Save best model
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_loss': avg_val_loss,
+            }, 'best_model.pth')
+            print(f"Saved best model (val_loss: {avg_val_loss:.4f})")
+
+        # Save checkpoint every 10 epochs
+        if (epoch + 1) % 10 == 0:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+            }, f'checkpoint_epoch_{epoch+1}.pth')
+
+
+def load_model(checkpoint_path, Np=12, Nf=12, device='cuda'):
+    """
+    Load a trained DroneStalkerModel from checkpoint.
+
+    Args:
+        checkpoint_path: Path to the .pth checkpoint file
+        Np: Observation window size
+        Nf: Prediction horizon
+        device: 'cuda' or 'cpu'
+
+    Returns:
+        Loaded model in eval mode
+    """
+    model = DroneStalkerModel(Np=Np, Nf=Nf, input_dim=132, num_layers=4,
+                             num_heads=4, dim_feedforward=512, dropout=0.1)
+
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+    model.eval()
+
+    print(f"Loaded model from {checkpoint_path}")
+    if 'epoch' in checkpoint:
+        print(f"  Epoch: {checkpoint['epoch']}")
+    if 'val_loss' in checkpoint:
+        print(f"  Val Loss: {checkpoint['val_loss']:.4f}")
+
+    return model
+
+
+def run_inference(model, observation_frames, mean_velocity, std_velocity, mean_coordinates, std_coordinates, device='cuda'):
+    """
+    Run inference on a sequence of observation frames.
+
+    Args:
+        model: Trained DroneStalkerModel
+        observation_frames: List of Np consecutive frame dictionaries from FRED dataset
+        mean_velocity, std_velocity, mean_coordinates, std_coordinates: Normalization stats from training
+        device: 'cuda' or 'cpu'
+
+    Returns:
+        predicted_boxes: numpy array of shape [Nf, 4] containing predicted bounding boxes [x1, y1, x2, y2]
+    """
+    model.eval()
+    Np = len(observation_frames)
+
+    # === Process Event Images ===
+    event_images = []
+    for sample in observation_frames:
+        event_tensor = get_event_feature(sample)
+        if event_tensor is None:
+            event_tensor = torch.zeros(64, 64)
+        event_images.append(event_tensor.unsqueeze(0))
+    event_images = torch.stack(event_images).unsqueeze(0)  # [1, Np, 1, 64, 64]
+
+    # === Process Kinematic Features ===
+    kinematic_features = []
+    for i in range(len(observation_frames) - 1):
+        features = get_kinematic_features(
+            observation_frames[i], observation_frames[i + 1],
+            mean_velocity, std_velocity, mean_coordinates, std_coordinates
+        )
+        kinematic_features.append(features)
+    kinematic_features.append(kinematic_features[-1])  # Duplicate last velocity
+    kinematic_features = torch.tensor([kinematic_features], dtype=torch.float32)  # [1, Np, 4]
+
+    # Move to device
+    event_images = event_images.to(device)
+    kinematic_features = kinematic_features.to(device)
+
+    # Run inference
+    with torch.no_grad():
+        reconstructed_past, predicted_future = model(event_images, kinematic_features)
+
+    # Convert to numpy
+    predicted_boxes = predicted_future.cpu().numpy()[0]  # [Nf, 4]
+
+    return predicted_boxes
+
+
+def visualize_predictions(observation_frames, predicted_boxes, save_path=None):
+    """Visualize predicted trajectory."""
+    import matplotlib.pyplot as plt
+
+    # Observed trajectory
+    obs_centers = [((f['x1'] + f['x2']) / 2, (f['y1'] + f['y2']) / 2) for f in observation_frames]
+    obs_x, obs_y = zip(*obs_centers)
+
+    # Predicted trajectory
+    pred_centers = [((b[0] + b[2]) / 2, (b[1] + b[3]) / 2) for b in predicted_boxes]
+    pred_x, pred_y = zip(*pred_centers)
+
+    plt.figure(figsize=(10, 8))
+    plt.plot(obs_x, obs_y, 'bo-', label='Observed', linewidth=2, markersize=8)
+    plt.plot(pred_x, pred_y, 'ro-', label='Predicted', linewidth=2, markersize=8)
+    plt.xlabel('X coordinate (pixels)')
+    plt.ylabel('Y coordinate (pixels)')
+    plt.title('Drone Trajectory Prediction')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.gca().invert_yaxis()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Saved visualization to {save_path}")
+    else:
+        plt.show()
+    plt.close()
+
+
+def inference_example():
+    """Example of running inference with a trained model."""
+    checkpoint_path = 'best_model.pth'
+    Np, Nf = 12, 12
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    print("=" * 70)
+    print("DroneStalker Inference Example")
+    print("=" * 70)
+
+    # Load model
+    model = load_model(checkpoint_path, Np=Np, Nf=Nf, device=device)
+
+    # Load data and compute normalization stats
+    print("\nLoading dataset...")
+    data = get_data()
+    mean_velocity = get_mean_velocity(data)
+    std_velocity = get_std_velocity(data, mean_velocity)
+    mean_coordinates = get_mean_coordinates(data)
+    std_coordinates = get_std_coordinates(data, mean_coordinates)
+
+    # Select random sequence
+    import random
+    start_idx = random.randint(0, len(data) - Np - Nf)
+    observation_frames = data[start_idx : start_idx + Np]
+    ground_truth_future = data[start_idx + Np : start_idx + Np + Nf]
+
+    print(f"\nRunning inference on frames {start_idx} to {start_idx + Np - 1}")
+
+    # Run inference
+    predicted_boxes = run_inference(model, observation_frames, mean_velocity, std_velocity,
+                                   mean_coordinates, std_coordinates, device)
+
+    print("\nPredictions:")
+    print("Frame | Predicted [x1, y1, x2, y2] | Ground Truth [x1, y1, x2, y2]")
+    print("-" * 70)
+    for i in range(Nf):
+        pred = predicted_boxes[i]
+        gt = ground_truth_future[i]
+        print(f"{i+1:5d} | [{pred[0]:6.1f}, {pred[1]:6.1f}, {pred[2]:6.1f}, {pred[3]:6.1f}] | "
+              f"[{gt['x1']:6.1f}, {gt['y1']:6.1f}, {gt['x2']:6.1f}, {gt['y2']:6.1f}]")
+
+    # Visualize
+    visualize_predictions(observation_frames, predicted_boxes, save_path='prediction_viz.png')
+
+    print("\nInference completed!")
+
+
+def main():
+    
+    """Main training script."""
+    # Configuration
+    Np = 12  # Observation window
+    Nf = 12  # Prediction horizon
+    batch_size = 16
+    num_epochs = 50
+    learning_rate = 1e-4
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    print("=" * 70)
+    print("DroneStalker Training - FRED Dataset")
+    print("=" * 70)
+    print(f"Device: {device}")
+    print(f"Observation window (Np): {Np} frames")
+    print(f"Prediction horizon (Nf): {Nf} frames")
+    print(f"Batch size: {batch_size}")
+    print(f"Epochs: {num_epochs}")
+    print("=" * 70)
+
+    # Load data
+    print("\nLoading FRED dataset...")
+    data = get_data()
+
+    # Train/Val split (80/20)
+    train_size = int(0.8 * len(data))
+    train_data = data[:train_size]
+    val_data = data[train_size:]
+    print(f"Train: {len(train_data)} frames, Val: {len(val_data)} frames")
+
+    # Create datasets
+    train_dataset = DroneTrajectoryDataset(train_data, Np=Np, Nf=Nf)
+    val_dataset = DroneTrajectoryDataset(val_data, Np=Np, Nf=Nf)
+
+    # Create dataloaders
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True,
+        num_workers=4, pin_memory=(device == 'cuda')
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False,
+        num_workers=4, pin_memory=(device == 'cuda')
+    )
+
+    print(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
+
+    # Initialize model
+    print("\nInitializing DroneStalkerModel...")
+    model = DroneStalkerModel(Np=Np, Nf=Nf, input_dim=132, num_layers=4,
+                             num_heads=4, dim_feedforward=512, dropout=0.1)
+
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total parameters: {total_params:,}")
+
+    # Train
+    print("\n" + "=" * 70)
+    print("Starting training...")
+    print("=" * 70)
+    train_model(model, train_loader, val_loader, num_epochs, learning_rate, device)
+
+    print("\n" + "=" * 70)
+    print("Training completed!")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
