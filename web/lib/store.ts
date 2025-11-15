@@ -75,6 +75,7 @@ type StoreTypes = {
   setSendMessageCallback: (callback: ((action: string) => void) | null) => void;
   triggerAction: (action: string) => void;
   unlockAll: () => void;
+  reset: () => void;
 };
 
 export const scenarioStates = {
@@ -313,8 +314,9 @@ export const useStore = create<StoreTypes>((set) => ({
       const newHealth = Math.max(0, Math.min(100, value));
       // Win condition: when drone health reaches 0
       if (newHealth === 0 && !state.hasWin) {
-        // Highlight credits tab on win
+        // Trigger action to notify commander
         setTimeout(() => {
+          useStore.getState().triggerAction("destroyed the enemy drone");
           highlightId("tab-credits");
         }, 0);
         return {
@@ -428,6 +430,21 @@ export const useStore = create<StoreTypes>((set) => ({
       },
     });
   },
+  reset: () =>
+    set({
+      scenarioState: "intro",
+      tab: "video",
+      activeCamera: true,
+      activeMotionDetection: false,
+      activeFire: false,
+      activeTracking: false,
+      activeAutoFire: false,
+      activeMotionPrediction: false,
+      activeLockTarget: false,
+      droneHealth: 100,
+      hasWin: false,
+      ttsQueue: [],
+    }),
 }));
 
 // Export getState for use in callbacks

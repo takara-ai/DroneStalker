@@ -29,6 +29,7 @@ export default function Page() {
   const triggerAction = useStore((state) => state.triggerAction);
   const codeStates = useStore((state) => state.codeStates);
   const unlockAll = useStore((state) => state.unlockAll);
+  const hasWon = useStore((state) => state.hasWin);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -189,7 +190,7 @@ export default function Page() {
               )}
             </Button>
           </nav>
-          {true && (
+          {hasWon && (
             <div className="text-white z-40 text-lg absolute bottom-16 left-1/2 -translate-x-1/2 text-center max-w-sm bg-background/90">
               CONGRATS! YOU HAVE DESTROYED THE DRONE. THANK YOU FOR PLAYING!
             </div>

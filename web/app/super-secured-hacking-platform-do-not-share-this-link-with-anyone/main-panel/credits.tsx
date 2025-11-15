@@ -1,9 +1,40 @@
 import Link from "next/link";
+import { useStore } from "@/lib/store";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function Credits() {
+  const dataId = useStore((state) => state.dataId);
+  const setDataId = useStore((state) => state.setDataId);
+  const reset = useStore((state) => state.reset);
+
+  const missions = ["0", "60", "132", "230"];
+
+  const handleMissionChange = (newDataId: string) => {
+    reset();
+    // Set the new dataId after reset (reset sets it to "60" by default)
+    setDataId(newDataId);
+  };
+
   return (
     <div className="border-4 flex h-full opened flex-col gap-1 p-6 overflow-y-auto text-sm">
-      <h1 className="text-2xl font-bold">The Team</h1>
+      <h1 className="text-2xl font-bold">Missions</h1>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {missions.map((missionId) => (
+          <Button
+            key={missionId}
+            onClick={() => handleMissionChange(missionId)}
+            className={cn(
+              "uppercase",
+              dataId === missionId && "bg-foreground text-background"
+            )}
+          >
+            Mission {missionId}
+          </Button>
+        ))}
+      </div>
+
+      <h1 className="text-2xl font-bol mt-4">The Team</h1>
       <p>Cody Adam: Web experience</p>
       <p>Jordan Legg:</p>
       <p>Jacob Kenney:</p>
