@@ -1,8 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
+import cv2
+from evio.core.pacer import Pacer
 from evio.source.dat_file import DatFileSource
-from main import get_window
+from main import get_window, get_frame
 from rpm_estimator import RpmEstimator
 
 BG = "#031402"
@@ -117,7 +119,7 @@ def process_file(dat_path: str, window_ms: float = 10.0) -> tuple[np.ndarray, np
             if np.sum(valid_rate_mask) > 1:
                 rpm_rate_plot = np.interp(times, times[valid_rate_mask], rpm_rate[valid_rate_mask])
     
-    return times, rpms_plot, rpm_rate_plot, rpms
+    return times, rpms_plot, rpm_rate_plot, rpms, window_ms
 
 def plot_data(times: np.ndarray, rpms: np.ndarray, rpm_rate: np.ndarray, title: str, output: str):
     plt.rcParams['font.family'] = 'monospace'
@@ -201,11 +203,35 @@ def create_video(times: np.ndarray, rpms: np.ndarray, rpm_rate: np.ndarray, titl
         return line1, line2
     
     frames = len(times)
-    ani = FuncAnimation(fig, animate, frames=frames, interval=50, blit=True, repeat=False)
+    # Calculate real-time FPS: total frames / total duration in seconds
+    if len(times) > 1:
+        total_duration_s = times[-1] - times[0]
+        fps = frames / total_duration_s if total_duration_s > 0 else 20
+    else:
+        fps = 20
     
-    writer = FFMpegWriter(fps=20, metadata=dict(artist='Fan Speed Visualization'))
+    ani = FuncAnimation(fig, animate, frames=frames, blit=True, repeat=False)
+    
+    writer = FFMpegWriter(fps=fps, extra_args=['-map_metadata', '-1', '-movflags', '+faststart'])
     ani.save(output, writer=writer, dpi=100)
     plt.close()
+
+def create_evio_player_video(dat_path: str, window_ms: float = 10.0) -> str:
+    src = DatFileSource(dat_path, width=1280, height=720, window_length_us=window_ms * 1000)
+    pacer = Pacer(speed=1.0, force_speed=False)
+    
+    output_path = f"visualization_{dat_path.split('/')[-1].replace('.dat', '')}_evio_player.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
+    fps = 1000.0 / window_ms  # Correct FPS calculation: 1000ms / window_ms = frames per second
+    video_writer = cv2.VideoWriter(output_path, fourcc, fps, (1280, 720))
+    
+    for batch_range in pacer.pace(src.ranges()):
+        window = get_window(src.event_words, src.order, batch_range.start, batch_range.stop)
+        frame = get_frame(window)
+        video_writer.write(frame)
+    
+    video_writer.release()
+    return output_path
 
 def main():
     files = [
@@ -215,7 +241,7 @@ def main():
     ]
     
     for dat_path, title, expected_min, expected_max, expected_duration in files:
-        times, rpms_plot, rpm_rate_plot, rpms_original = process_file(dat_path)
+        times, rpms_plot, rpm_rate_plot, rpms_original, window_ms = process_file(dat_path)
         
         # Create static PNG
         png_output = f"visualization_{dat_path.split('/')[-1].replace('.dat', '')}.png"
@@ -224,6 +250,9 @@ def main():
         # Create animated MP4
         mp4_output = f"visualization_{dat_path.split('/')[-1].replace('.dat', '')}.mp4"
         create_video(times, rpms_plot, rpm_rate_plot, title, mp4_output)
+        
+        # Create evio player MP4
+        evio_output = create_evio_player_video(dat_path, window_ms)
         
         # Diagnostic: verify alignment with expected ranges (use original, non-interpolated values)
         valid_rpms = rpms_original[~np.isnan(rpms_original)]
@@ -244,7 +273,7 @@ def main():
                 print(f"  Expected: {expected_min}-{expected_max} RPM")
                 in_range = (rpm_min >= expected_min - 50) and (rpm_max <= expected_max + 50)
                 print(f"  Alignment: {'PASS' if in_range else 'CHECK'}")
-        print(f"  Saved: {png_output} and {mp4_output}")
+        print(f"  Saved: {png_output}, {mp4_output}, and {evio_output}")
 
 if __name__ == "__main__":
     main()
