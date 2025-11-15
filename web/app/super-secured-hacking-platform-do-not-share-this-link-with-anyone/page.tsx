@@ -5,6 +5,7 @@ import { openPanel } from "@/lib/open-animation";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
+import { SoundEffects } from "@/components/sfx";
 import CommanderVideo from "./commander-video";
 import Controls from "./controls";
 import Code from "./main-panel/code";
@@ -103,113 +104,116 @@ export default function Page() {
   }, []);
 
   return (
-    <div className="grid grid-cols-4 grid-rows-4 gap-2 h-full">
-      <div
-        className="col-span-3 row-span-3 gap-2 flex flex-col relative closed"
-        id="main-panel"
-      >
-        <nav className="flex gap-2 ">
-          <Button
-            onClick={() => setTab("video")}
-            className={cn(
-              "uppercase",
-              tab === "video" && "bg-foreground text-background"
-            )}
-          >
-            Camera view
-          </Button>
-          <Button
-            onClick={() => setTab("motionDetection")}
-            className={cn(
-              "uppercase",
-              tab === "motionDetection" && "bg-foreground text-background"
-            )}
-            disabled={!codeStates.motionDetection.unlocked}
-          >
-            {codeStates.motionDetection.unlocked ? "motion.py" : "???"}
-            {!codeStates.motionDetection.unlocked && (
-              <span className="text-destructive">locked</span>
-            )}
-          </Button>
-          <Button
-            onClick={() => setTab("tracking")}
-            className={cn(
-              "uppercase",
-              tab === "tracking" && "bg-foreground text-background"
-            )}
-            disabled={!codeStates.tracking.unlocked}
-          >
-            {codeStates.tracking.unlocked ? "tracking.py" : "???"}
-            {!codeStates.tracking.unlocked && (
-              <span className="text-destructive">locked</span>
-            )}
-          </Button>
-          <Button
-            onClick={() => setTab("positionPrediction")}
-            className={cn(
-              "uppercase",
-              tab === "positionPrediction" && "bg-foreground text-background"
-            )}
-            disabled={!codeStates.positionPrediction.unlocked}
-          >
-            {codeStates.positionPrediction.unlocked ? "prediction.py" : "???"}
-            {!codeStates.positionPrediction.unlocked && (
-              <span className="text-destructive">locked</span>
-            )}
-          </Button>
-          <Button
-            onClick={() => setTab("credits")}
-            className={cn(
-              "uppercase",
-              tab === "credits" && "bg-foreground text-background"
-            )}
-            disabled={!unlockedCredits}
-          >
-            {unlockedCredits ? "Credits" : "???"}
-            {!unlockedCredits && (
-              <span className="text-destructive">locked</span>
-            )}
-          </Button>
-        </nav>
-        {tab === "video" && <VideoFeed />}
-        {tab === "motionDetection" && (
-          <Code
-            codeKey="motionDetection"
-            code={codes.motionDetection.code}
-            source={codes.motionDetection.source}
-            onComplete={() => handleCodeComplete("motionDetection")}
-          />
-        )}
-        {tab === "tracking" && (
-          <Code
-            codeKey="tracking"
-            code={codes.tracking.code}
-            source={codes.tracking.source}
-            onComplete={() => handleCodeComplete("tracking")}
-          />
-        )}
-        {tab === "positionPrediction" && (
-          <Code
-            codeKey="positionPrediction"
-            code={codes.positionPrediction.code}
-            source={codes.positionPrediction.source}
-            onComplete={() => handleCodeComplete("positionPrediction")}
-          />
-        )}
-        {tab === "credits" && <Credits />}
+    <>
+      <SoundEffects />
+      <div className="grid grid-cols-4 grid-rows-4 gap-2 h-full">
+        <div
+          className="col-span-3 row-span-3 gap-2 flex flex-col relative closed"
+          id="main-panel"
+        >
+          <nav className="flex gap-2 ">
+            <Button
+              onClick={() => setTab("video")}
+              className={cn(
+                "uppercase",
+                tab === "video" && "bg-foreground text-background"
+              )}
+            >
+              Camera view
+            </Button>
+            <Button
+              onClick={() => setTab("motionDetection")}
+              className={cn(
+                "uppercase",
+                tab === "motionDetection" && "bg-foreground text-background"
+              )}
+              disabled={!codeStates.motionDetection.unlocked}
+            >
+              {codeStates.motionDetection.unlocked ? "motion.py" : "???"}
+              {!codeStates.motionDetection.unlocked && (
+                <span className="text-destructive">locked</span>
+              )}
+            </Button>
+            <Button
+              onClick={() => setTab("tracking")}
+              className={cn(
+                "uppercase",
+                tab === "tracking" && "bg-foreground text-background"
+              )}
+              disabled={!codeStates.tracking.unlocked}
+            >
+              {codeStates.tracking.unlocked ? "tracking.py" : "???"}
+              {!codeStates.tracking.unlocked && (
+                <span className="text-destructive">locked</span>
+              )}
+            </Button>
+            <Button
+              onClick={() => setTab("positionPrediction")}
+              className={cn(
+                "uppercase",
+                tab === "positionPrediction" && "bg-foreground text-background"
+              )}
+              disabled={!codeStates.positionPrediction.unlocked}
+            >
+              {codeStates.positionPrediction.unlocked ? "prediction.py" : "???"}
+              {!codeStates.positionPrediction.unlocked && (
+                <span className="text-destructive">locked</span>
+              )}
+            </Button>
+            <Button
+              onClick={() => setTab("credits")}
+              className={cn(
+                "uppercase",
+                tab === "credits" && "bg-foreground text-background"
+              )}
+              disabled={!unlockedCredits}
+            >
+              {unlockedCredits ? "Credits" : "???"}
+              {!unlockedCredits && (
+                <span className="text-destructive">locked</span>
+              )}
+            </Button>
+          </nav>
+          {tab === "video" && <VideoFeed />}
+          {tab === "motionDetection" && (
+            <Code
+              codeKey="motionDetection"
+              code={codes.motionDetection.code}
+              source={codes.motionDetection.source}
+              onComplete={() => handleCodeComplete("motionDetection")}
+            />
+          )}
+          {tab === "tracking" && (
+            <Code
+              codeKey="tracking"
+              code={codes.tracking.code}
+              source={codes.tracking.source}
+              onComplete={() => handleCodeComplete("tracking")}
+            />
+          )}
+          {tab === "positionPrediction" && (
+            <Code
+              codeKey="positionPrediction"
+              code={codes.positionPrediction.code}
+              source={codes.positionPrediction.source}
+              onComplete={() => handleCodeComplete("positionPrediction")}
+            />
+          )}
+          {tab === "credits" && <Credits />}
+        </div>
+        <div className="col-start-4 row-start-1 flex flex-col *:h-full">
+          <CommanderVideo />
+        </div>
+        <div className="col-start-4 row-start-2 row-span-2 flex flex-col *:h-full">
+          <TextingChat />
+        </div>
+        <div className="col-start-4 row-start-4 flex flex-col *:h-full">
+          <You />
+        </div>
+        <div className="col-span-3 row-start-4 flex flex-col *:h-full">
+          <Controls />
+        </div>
       </div>
-      <div className="col-start-4 row-start-1 flex flex-col *:h-full">
-        <CommanderVideo />
-      </div>
-      <div className="col-start-4 row-start-2 row-span-2 flex flex-col *:h-full">
-        <TextingChat />
-      </div>
-      <div className="col-start-4 row-start-4 flex flex-col *:h-full">
-        <You />
-      </div>
-      <div className="col-span-3 row-start-4 flex flex-col *:h-full">
-        <Controls />
-      </div>
-    </div>
+    </>
   );
 }
