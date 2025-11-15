@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 from evio.source.dat_file import DatFileSource
 from main import get_window
 from rpm_estimator import RpmEstimator
@@ -153,6 +154,59 @@ def plot_data(times: np.ndarray, rpms: np.ndarray, rpm_rate: np.ndarray, title: 
     plt.savefig(output, facecolor=BG, dpi=150)
     plt.close()
 
+def create_video(times: np.ndarray, rpms: np.ndarray, rpm_rate: np.ndarray, title: str, output: str):
+    plt.rcParams['font.family'] = 'monospace'
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), facecolor=BG)
+    fig.suptitle(title, color=FG, fontsize=14)
+    plt.subplots_adjust(hspace=0.4)
+    
+    # Setup axes
+    for ax in [ax1, ax2]:
+        ax.set_facecolor(BG)
+        ax.tick_params(colors=FG)
+        ax.grid(True, color=FG, alpha=0.3)
+        for spine in ax.spines.values():
+            spine.set_color(FG)
+    
+    ax1.set_xlabel("Time (mS)", color=FG)
+    ax1.set_ylabel("RPM", color=FG)
+    ax1.set_title("Fan Speed", color=FG)
+    ax1.set_xlim(0, times[-1] * 1000 if len(times) > 0 else 1000)
+    if len(rpms) > 0:
+        ax1.set_ylim(np.nanmin(rpms) * 0.95, np.nanmax(rpms) * 1.05)
+    else:
+        ax1.set_ylim(0, 1000)
+    
+    ax2.set_xlabel("Time (mS)", color=FG)
+    ax2.set_ylabel("RPM/s", color=FG)
+    ax2.set_title("Rate of Change", color=FG)
+    ax2.set_xlim(0, times[-1] * 1000 if len(times) > 0 else 1000)
+    if len(rpm_rate) > 0:
+        ax2.set_ylim(np.nanmin(rpm_rate) * 1.1, np.nanmax(rpm_rate) * 1.1)
+    else:
+        ax2.set_ylim(-100, 100)
+    
+    # Initialize lines
+    line1, = ax1.plot([], [], color=FG, linewidth=1)
+    line2, = ax2.plot([], [], color=FG, linewidth=1)
+    
+    def animate(frame):
+        idx = min(frame, len(times) - 1)
+        t_data = times[:idx+1] * 1000
+        r_data = rpms[:idx+1]
+        rate_data = rpm_rate[:idx+1]
+        
+        line1.set_data(t_data, r_data)
+        line2.set_data(t_data, rate_data)
+        return line1, line2
+    
+    frames = len(times)
+    ani = FuncAnimation(fig, animate, frames=frames, interval=50, blit=True, repeat=False)
+    
+    writer = FFMpegWriter(fps=20, metadata=dict(artist='Fan Speed Visualization'))
+    ani.save(output, writer=writer, dpi=100)
+    plt.close()
+
 def main():
     files = [
         ("../data/fan_const_rpm.dat", "Constant RPM", 1100, None, 10),
@@ -162,8 +216,14 @@ def main():
     
     for dat_path, title, expected_min, expected_max, expected_duration in files:
         times, rpms_plot, rpm_rate_plot, rpms_original = process_file(dat_path)
-        output = f"visualization_{dat_path.split('/')[-1].replace('.dat', '')}.png"
-        plot_data(times, rpms_plot, rpm_rate_plot, title, output)
+        
+        # Create static PNG
+        png_output = f"visualization_{dat_path.split('/')[-1].replace('.dat', '')}.png"
+        plot_data(times, rpms_plot, rpm_rate_plot, title, png_output)
+        
+        # Create animated MP4
+        mp4_output = f"visualization_{dat_path.split('/')[-1].replace('.dat', '')}.mp4"
+        create_video(times, rpms_plot, rpm_rate_plot, title, mp4_output)
         
         # Diagnostic: verify alignment with expected ranges (use original, non-interpolated values)
         valid_rpms = rpms_original[~np.isnan(rpms_original)]
@@ -184,7 +244,7 @@ def main():
                 print(f"  Expected: {expected_min}-{expected_max} RPM")
                 in_range = (rpm_min >= expected_min - 50) and (rpm_max <= expected_max + 50)
                 print(f"  Alignment: {'PASS' if in_range else 'CHECK'}")
-        print(f"  Saved: {output}")
+        print(f"  Saved: {png_output} and {mp4_output}")
 
 if __name__ == "__main__":
     main()
