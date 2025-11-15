@@ -128,8 +128,13 @@ export default function TextingChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
-  // Add new commander messages to TTS queue
+  // Add new commander messages to TTS queue (only when complete)
   useEffect(() => {
+    // Only process when not streaming to avoid queuing partial messages
+    if (status === "streaming" || status === "submitted") {
+      return;
+    }
+
     messages.forEach((message) => {
       // Only process assistant (commander) messages
       if (message.role === "assistant") {
@@ -153,7 +158,7 @@ export default function TextingChat() {
         }
       }
     });
-  }, [messages, addToTtsQueue]);
+  }, [messages, addToTtsQueue, status]);
 
   // Unlock everything when the '=' key is pressed
   useEffect(() => {
