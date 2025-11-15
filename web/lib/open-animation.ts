@@ -1,5 +1,6 @@
 export function openPanel(element: string | null | HTMLElement) {
   let el: HTMLElement | null = null;
+  if (!document) return;
   if (typeof element === "string") {
     el = document.getElementById(element);
   } else {

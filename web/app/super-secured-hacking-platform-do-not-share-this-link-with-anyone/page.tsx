@@ -93,8 +93,10 @@ export default function Page() {
         // Wait longer before opening 'controls' (after chat)
         if (idx === 3) {
           setTimeout(openNext, 4000);
+        } else if (idx < 3) {
+          setTimeout(openNext, 500);
         } else if (idx < ids.length) {
-          setTimeout(openNext, 2000);
+          setTimeout(openNext, 1000);
         }
       }
     }

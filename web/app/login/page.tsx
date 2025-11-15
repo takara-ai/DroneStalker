@@ -26,28 +26,29 @@ export default function Page() {
 
   return (
     <div className="h-full w-full flex items-center justify-center relative flex-col gap-8">
-      {createPortal(
-        <div className="absolute -top-5 right-10 z-110 grid items-center justify-center group">
-          <Image
-            src="/sticky-note.webp"
-            alt="sticky note"
-            width={500}
-            height={500}
-            className={cn(
-              "object-contain z-110 origin-top col-start-1 row-start-1",
-              "transition-transform duration-300",
-              "group-hover:transform-[perspective(600px)_rotateX(35deg)_scaleY(0.5)]"
-            )}
-            draggable={false}
-          />
-          <span className="text-xs text-foreground whitespace-normal col-start-1 row-start-1 mt-[30%] px-20 w-full max-w-xs overflow-hidden">
-            Secret unlock all
-            <br />
-            code: &quot;MIRROR&quot;
-          </span>
-        </div>,
-        document.body
-      )}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <div className="absolute -top-5 right-10 z-110 grid items-center justify-center group">
+            <Image
+              src="/sticky-note.webp"
+              alt="sticky note"
+              width={500}
+              height={500}
+              className={cn(
+                "object-contain z-110 origin-top col-start-1 row-start-1",
+                "transition-transform duration-300",
+                "group-hover:transform-[perspective(600px)_rotateX(35deg)_scaleY(0.5)]"
+              )}
+              draggable={false}
+            />
+            <span className="text-xs text-foreground whitespace-normal col-start-1 row-start-1 mt-[30%] px-20 w-full max-w-xs overflow-hidden">
+              Secret unlock all
+              <br />
+              code: &quot;MIRROR&quot;
+            </span>
+          </div>,
+          document.body
+        )}
       <div className="flex items-center gap- blur-[1px]">
         <Image
           src="/junction.png"
