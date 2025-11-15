@@ -2,7 +2,7 @@
 
 export default function CommanderVideo() {
   return (
-    <div className="border-4 relative p-2">
+    <div className="border-4 relative p-2 closed" id="commander">
       <img
         src="/commander.gif"
         alt="commander"

@@ -80,6 +80,8 @@
   --crt-red: rgb(218, 49, 49);
   --crt-green: rgb(112, 159, 115);
   --crt-blue: rgb(40, 129, 206);
+
+  color-scheme: dark;
 }
 
 @layer base {
@@ -90,7 +92,7 @@
     @apply bg-background text-foreground font-mono overflow-hidden;
   }
   html {
-    @apply overflow-hidden text-[26px];
+    @apply overflow-hidden text-[26px] scheme-only-dark;
   }
 }
 
@@ -108,7 +110,7 @@
   }
 }
 .crt {
-  background-color: rgb(25, 25, 30);
+  background-color: #031402;
   text-shadow: 0 0 0.2em currentColor, 1px 1px rgba(255, 0, 255, 0.5),
     -1px -1px rgba(0, 255, 255, 0.4) !important;
   position: relative;
@@ -143,4 +145,48 @@
     var(--crt-green) 2px,
     var(--crt-blue) 3px
   );
+}
+
+@utility opened {
+  @apply relative;
+  animation: starting-noise 0.7s ease-in-out forwards;
+}
+
+@utility closed {
+  @apply origin-center scale-0;
+}
+
+.opened::after {
+  @apply absolute pointer-events-none w-full h-full top-0 left-0 z-100 origin-center delay-400 bg-no-repeat;
+  content: "";
+  background-image: url("/starting-noise.gif");
+  background-size: 100% 100%;
+  animation: fade-out 0.7s ease-in-out forwards;
+  mix-blend-mode: color-burn;
+}
+
+@keyframes starting-noise {
+  0% {
+    opacity: 1;
+    transform: scale(0, 0);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1, 0.05);
+  }
+  50% {
+    transform: scale(1, 1);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+@keyframes fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }

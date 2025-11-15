@@ -38,7 +38,7 @@ export function Viewport({
       )}
       id="viewport"
     >
-      <div className="w-full h-full relative crt">{children}</div>
+      <div className="w-full h-full relative">{children}</div>
     </main>
   );
 }

@@ -24,7 +24,7 @@ export default function Controls() {
   } = useStore();
 
   return (
-    <div className="border-4 grid grid-cols-2 p-6">
+    <div className="border-4 grid grid-cols-2 p-6 closed" id="controls">
       <ToggleButton
         label="camera feed"
         value={activeCamera}
@@ -78,7 +78,7 @@ function ToggleButton({
 }) {
   return (
     <button
-      className="flex items-center font-semibold text-lg justify-start gap-2 uppercase cursor-pointer disabled:cursor-not-allowed disabled:text-muted-foreground"
+      className="flex items-center font-semibold text-lg justify-start px-2 gap-2 uppercase cursor-pointer disabled:cursor-not-allowed disabled:text-muted-foreground hover:bg-foreground/10 active:text-white"
       onClick={() => onChange?.(!value)}
       disabled={locked}
     >

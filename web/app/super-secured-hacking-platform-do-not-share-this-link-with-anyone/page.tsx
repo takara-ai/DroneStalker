@@ -1,25 +1,53 @@
 "use client";
 
-import VideoFeed from "./main-panel/video-feed";
+import { Button } from "@/components/ui/button";
+import { openPanel } from "@/lib/open-animation";
+import { useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 import CommanderVideo from "./commander-video";
+import Controls from "./controls";
+import Code from "./main-panel/code";
+import Credits from "./main-panel/credits";
+import VideoFeed from "./main-panel/video-feed";
 import TextingChat from "./texting-chat";
 import You from "./you";
-import Controls from "./controls";
-import { Button } from "@/components/ui/button";
-import { useStore } from "@/lib/store";
-
-import Credits from "./main-panel/credits";
-import Code from "./main-panel/code";
-import { cn } from "@/lib/utils";
 
 export default function Page() {
   const tab = useStore((state) => state.tab);
   const setTab = useStore((state) => state.setTab);
   const unlockedCode = useStore((state) => state.unlockedCode);
   const unlockedCredits = useStore((state) => state.unlockedCredits);
+
+  useEffect(() => {
+    // Find all elements with the class 'closed' and remove it one by one every 2s
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>(".closed")
+    );
+    let idx = 0;
+
+    function openNext() {
+      if (idx < elements.length) {
+        openPanel(elements[idx]);
+        idx++;
+        if (idx < elements.length) {
+          setTimeout(openNext, 500);
+        }
+      }
+    }
+
+    if (elements.length) {
+      openNext();
+    }
+    // Optionally, return cleanup if components could be remounted/reopened, but not strictly needed here.
+  }, []);
+
   return (
     <div className="grid grid-cols-4 grid-rows-4 gap-2 h-full">
-      <div className="col-span-3 row-span-3 gap-2 flex flex-col relative">
+      <div
+        className="col-span-3 row-span-3 gap-2 flex flex-col relative closed"
+        id="main-panel"
+      >
         <nav className="flex gap-2 ">
           <Button
             onClick={() => setTab("video")}
