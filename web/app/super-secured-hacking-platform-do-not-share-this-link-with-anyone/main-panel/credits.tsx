@@ -44,6 +44,13 @@ export default function Credits() {
         seen in the camera feed using frequency analysis. (see Appendix: Fan
         speed prediction)
       </p>
+      <p className="mt-2">
+        <b>Vision:</b> Our goal was to showcase incredible data science, AI, and
+        ML software through a highly engaging, visual, and gamified experience.
+        Rather than presenting technical achievements traditionally, we created
+        an interactive narrative that transforms complex machine learning
+        concepts into an accessible and exciting journey.
+      </p>
 
       <Title>Mission selector</Title>
       <p>
