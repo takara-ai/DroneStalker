@@ -4,6 +4,8 @@ data/**
 .DS_Store
 *.zip
 *.csv
+*.png
+*.mp4
 yolo/output_images
 __pycache__/*
 yolo/.venv
