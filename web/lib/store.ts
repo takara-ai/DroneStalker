@@ -92,7 +92,7 @@ export const scenarioStates = {
   trackingComplete:
     "The tracking code has been completed and the 'Tracking' toggle has been automatically unlocked. Guide the user to enable tracking, which allows continuous crosshair lock on the drone. Suggest that the user test the tracking system and attempt to fire.",
   positionPrediction:
-    "If shots are missing due to drone speed, explain to the user that they must implement position prediction using tracking data. Instruct the user to write code that predicts where the drone will be, and wait for them to finish this stage.",
+    "Shots are missing due to drone speed. Explain to the user that they must implement position prediction using tracking data to shot where the drone will be instead of where it is now. Instruct the user to write code that predicts where the drone will be, and wait for them to finish this stage.",
   positionPredictionComplete:
     "The position prediction code has been completed and the 'Position Prediction' toggle has been automatically unlocked. Instruct the user to activate this feature, improving crosshair accuracy. Encourage another attempt at firing.",
   success:
@@ -108,7 +108,7 @@ const initialCodeState: CodeState = {
 
 export const useStore = create<StoreTypes>((set) => ({
   scenarioState: "intro",
-  dataId: "0",
+  dataId: "230",
   unlockedCamera: true,
   unlockedMotion: false,
   unlockedFire: false,
@@ -271,6 +271,7 @@ export const useStore = create<StoreTypes>((set) => ({
       if (value && state.scenarioState === "trackingComplete") {
         setTimeout(() => {
           useStore.getState().triggerAction("enabled tracking");
+          highlightId("tab-positionPrediction");
         }, 0);
         return {
           activeTracking: value,

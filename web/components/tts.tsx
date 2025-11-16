@@ -75,6 +75,9 @@ export function Tts() {
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
 
+        // Set playback speed to x2
+        audio.playbackRate = 1.5;
+
         audio.onended = () => {
           activeAudios.delete(audio);
           URL.revokeObjectURL(audioUrl);
