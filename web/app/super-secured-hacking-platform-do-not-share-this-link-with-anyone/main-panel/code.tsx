@@ -17,12 +17,12 @@ import { useStore } from "@/lib/store";
 import Link from "next/link";
 
 // Speed thresholds (milliseconds between key presses)
-// Faster typing = lower interval = more characters per key
+// Faster typing = lower interval = higher percentage per key
 const SPEED_THRESHOLDS = [
-  { maxInterval: 50, charsPerKey: 50 }, // Super fast
-  { maxInterval: 200, charsPerKey: 20 }, // Fast
-  { maxInterval: 20000, charsPerKey: 5 }, // Medium
-  { maxInterval: Infinity, charsPerKey: 1 }, // Slow
+  { maxInterval: 50, percentPerKey: 2.0 }, // Super fast - 2% per key
+  { maxInterval: 200, percentPerKey: 1.0 }, // Fast - 1% per key
+  { maxInterval: 20000, percentPerKey: 0.3 }, // Medium - 0.3% per key
+  { maxInterval: Infinity, percentPerKey: 0.1 }, // Slow - 0.1% per key
 ];
 
 const SLIDING_WINDOW_SIZE = 10; // Track last 10 key presses
@@ -51,7 +51,6 @@ export default function Code({
 
   const codeProgress = codeState.codeProgress;
   const codeTypedCode = codeState.codeTypedCode;
-  const typingSpeedIndex = codeState.typingSpeedIndex;
 
   // Initialize currentPositionRef from stored typed code
   const currentPositionRef = useRef(codeTypedCode.length);
@@ -100,21 +99,24 @@ export default function Code({
   const lastKeyPressTimeRef = useRef<number | null>(null);
   const [debugInfo, setDebugInfo] = useState<{
     avgInterval: number;
-    charsPerKey: number;
-  }>({ avgInterval: 0, charsPerKey: 1 });
+    percentPerKey: number;
+  }>({ avgInterval: 0, percentPerKey: 0.1 });
 
   // Calculate typing speed and determine characters to advance
   // Returns both the chars to advance and the speed index (0-3)
   const getSpeedInfo = useCallback(
     (
-      currentTime?: number
+      currentTime?: number,
+      totalCodeLength?: number
     ): {
       charsToAdvance: number;
       speedIndex: number;
       avgInterval: number;
+      percentPerKey: number;
     } => {
       const now = currentTime ?? Date.now();
       const timestamps = keyPressTimestampsRef.current;
+      const codeLength = totalCodeLength ?? targetCode.length;
 
       // If no recent key presses or too much time has passed since last key press, reset to slowest
       if (
@@ -122,12 +124,32 @@ export default function Code({
         lastKeyPressTimeRef.current === null ||
         now - lastKeyPressTimeRef.current > INACTIVITY_THRESHOLD
       ) {
-        return { charsToAdvance: 1, speedIndex: 0, avgInterval: Infinity };
+        const slowestPercent =
+          SPEED_THRESHOLDS[SPEED_THRESHOLDS.length - 1].percentPerKey;
+        return {
+          charsToAdvance: Math.max(
+            1,
+            Math.floor((codeLength * slowestPercent) / 100)
+          ),
+          speedIndex: 0,
+          avgInterval: Infinity,
+          percentPerKey: slowestPercent,
+        };
       }
 
       if (timestamps.length < 2) {
         // Not enough data yet, default to slowest speed
-        return { charsToAdvance: 1, speedIndex: 0, avgInterval: Infinity };
+        const slowestPercent =
+          SPEED_THRESHOLDS[SPEED_THRESHOLDS.length - 1].percentPerKey;
+        return {
+          charsToAdvance: Math.max(
+            1,
+            Math.floor((codeLength * slowestPercent) / 100)
+          ),
+          speedIndex: 0,
+          avgInterval: Infinity,
+          percentPerKey: slowestPercent,
+        };
       }
 
       // Calculate average time between key presses in the sliding window
@@ -157,18 +179,34 @@ export default function Code({
           // Speed index: 3 (fastest) to 0 (slowest)
           // Index 3 = super fast, Index 2 = fast, Index 1 = medium, Index 0 = slow
           const speedIndex = SPEED_THRESHOLDS.length - 1 - i;
+          // Calculate chars to advance based on percentage of total code length
+          const charsToAdvance = Math.max(
+            1,
+            Math.floor((codeLength * threshold.percentPerKey) / 100)
+          );
           return {
-            charsToAdvance: threshold.charsPerKey,
+            charsToAdvance,
             speedIndex,
             avgInterval,
+            percentPerKey: threshold.percentPerKey,
           };
         }
       }
 
       // Fallback to slowest
-      return { charsToAdvance: 1, speedIndex: 0, avgInterval };
+      const slowestPercent =
+        SPEED_THRESHOLDS[SPEED_THRESHOLDS.length - 1].percentPerKey;
+      return {
+        charsToAdvance: Math.max(
+          1,
+          Math.floor((codeLength * slowestPercent) / 100)
+        ),
+        speedIndex: 0,
+        avgInterval,
+        percentPerKey: slowestPercent,
+      };
     },
-    []
+    [targetCode.length]
   );
 
   // Auto-focus input when component mounts
@@ -198,19 +236,17 @@ export default function Code({
   // Also update debug info
   useEffect(() => {
     const interval = setInterval(() => {
-      const speedInfo = getSpeedInfo();
+      const speedInfo = getSpeedInfo(undefined, targetCode.length);
       setCodeTypingSpeedIndex(codeKey, speedInfo.speedIndex);
       // Update debug info
-      const threshold =
-        SPEED_THRESHOLDS[SPEED_THRESHOLDS.length - 1 - speedInfo.speedIndex];
       setDebugInfo({
         avgInterval: speedInfo.avgInterval,
-        charsPerKey: threshold?.charsPerKey ?? 1,
+        percentPerKey: speedInfo.percentPerKey,
       });
     }, 100); // Check every 100ms
 
     return () => clearInterval(interval);
-  }, [getSpeedInfo, setCodeTypingSpeedIndex, codeKey]);
+  }, [getSpeedInfo, setCodeTypingSpeedIndex, codeKey, targetCode.length]);
 
   // Handle keyboard input - only prevent default for keys we handle
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -265,7 +301,7 @@ export default function Code({
     } else if (e.key.length === 1) {
       // Regular character - calculate how many chars to advance based on speed
       shouldTrackSpeed = true;
-      const speedInfo = getSpeedInfo();
+      const speedInfo = getSpeedInfo(undefined, targetCode.length);
       charsToAdvance = speedInfo.charsToAdvance;
       // Update the speed index in the store
       setCodeTypingSpeedIndex(codeKey, speedInfo.speedIndex);
@@ -282,14 +318,10 @@ export default function Code({
       lastKeyPressTimeRef.current = now; // Update last key press time
 
       // Update debug info after adding timestamp
-      const updatedSpeedInfo = getSpeedInfo(now);
-      const threshold =
-        SPEED_THRESHOLDS[
-          SPEED_THRESHOLDS.length - 1 - updatedSpeedInfo.speedIndex
-        ];
+      const updatedSpeedInfo = getSpeedInfo(now, targetCode.length);
       setDebugInfo({
         avgInterval: updatedSpeedInfo.avgInterval,
-        charsPerKey: threshold?.charsPerKey ?? 1,
+        percentPerKey: updatedSpeedInfo.percentPerKey,
       });
     }
 
@@ -344,7 +376,7 @@ export default function Code({
       {/* <div className="absolute left-6 top-2 text-xs font-mono bg-background/80 border border-border/50 p-2 rounded">
         <div className="text-foreground/70">DEBUG:</div>
         <div>Speed Index: {typingSpeedIndex}/3</div>
-        <div>Chars/Key: {debugInfo.charsPerKey}</div>
+        <div>Percent/Key: {debugInfo.percentPerKey}%</div>
         <div>
           Avg Interval:{" "}
           {debugInfo.avgInterval === Infinity

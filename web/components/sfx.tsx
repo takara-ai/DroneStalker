@@ -24,20 +24,20 @@ export function SoundEffects() {
 
     // Mouse sounds
     const mousePress = new Audio("/mouse-press.wav");
-    mousePress.volume = 0.1;
+    mousePress.volume = 0.2;
     mousePressRef.current = mousePress;
 
     const mouseRelease = new Audio("/mouse-release.wav");
-    mouseRelease.volume = 0.1;
+    mouseRelease.volume = 0.2;
     mouseReleaseRef.current = mouseRelease;
 
     // Keyboard sounds
     const keyPress = new Audio("/key-press.wav");
-    keyPress.volume = 0.1;
+    keyPress.volume = 0.2;
     keyPressRef.current = keyPress;
 
     const keyRelease = new Audio("/key-release.wav");
-    keyRelease.volume = 0.1;
+    keyRelease.volume = 0.2;
     keyReleaseRef.current = keyRelease;
 
     // Cleanup function

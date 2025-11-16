@@ -18,8 +18,38 @@ export default function Credits() {
 
   return (
     <div className="border-4 flex h-full opened flex-col gap-1 p-6 overflow-y-auto text-sm">
+      <p>
+        This project was built in just 40 hours at Junction 2025: Utopia &
+        Dystopia, held in Espoo, Finland.
+      </p>
+      <p className="mt-2">
+        We used the{" "}
+        <Link
+          href="https://miccunifi.github.io/FRED/"
+          className="text-white underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          FRED dataset
+        </Link>
+        , which contains video frames from both RGB and motion (event) cameras.
+      </p>
+      <p className="mt-2">
+        <b>Main challenges:</b> Clean the dataset, find and track the drone in
+        each frame, and train a machine learning model to predict where the
+        drone would go next.
+      </p>
+      <p className="mt-2">
+        <b>Side challenge:</b> We also estimated the rotation speed of a fan
+        seen in the camera feed using frequency analysis. (see Appendix: Fan
+        speed prediction)
+      </p>
+
       <Title>Mission selector</Title>
-      <div className="flex flex-wrap gap-2 mb-4">
+      <p>
+        You can play again with different dataset entries from the FRED dataset:
+      </p>
+      <div className="flex flex-wrap gap-2 mb-4 mt-2">
         {missions.map((missionId) => (
           <Button
             key={missionId}
@@ -35,6 +65,7 @@ export default function Credits() {
       </div>
 
       <Title>The team</Title>
+
       <p>
         <Link
           href="https://www.linkedin.com/in/codyadam/"
@@ -89,7 +120,7 @@ export default function Credits() {
       <ul className="list-inside ml-4">
         <li>- Gemini API: for the chat with the Commander</li>
         <li>
-          - Vultr: multi-hundred GB compute{" "}
+          - Vultr: multi-hundred gigabytes compute{" "}
           <Link
             href="https://huggingface.co/datasets/takara-ai/FRED-CONVERTED"
             className="text-white underline"
@@ -115,6 +146,7 @@ export default function Credits() {
       <ul className="list-inside ml-4">
         <li>- Next.js</li>
         <li>- React</li>
+        <li>- Zustand</li>
         <li>- Tailwind</li>
         <li>- Vercel</li>
       </ul>
@@ -126,9 +158,36 @@ export default function Credits() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          takara-ai/DroneStalker
+          DroneStalker
         </Link>
       </p>
+      <Title>Appendix: Fan speed prediction</Title>
+      <div className="w-full aspect-video grid grid-cols-2 p-2 gap-2 border-4 border-border/50 relative">
+        <div className="relative w-full h-full">
+          <video
+            src="/data/fan/visualization_fan_varying_rpm_turning_evio_player.mp4"
+            autoPlay
+            muted
+            loop
+            className="w-full h-full object-cover"
+          />
+          <span className="absolute left-1/2 bottom-2 -translate-x-1/2 -translate-y-1/2 bg-background/80 text-white text-xl px-4 py-1 select-none pointer-events-none">
+            INPUT
+          </span>
+        </div>
+        <div className="relative w-full h-full">
+          <video
+            src="/data/fan/visualization_fan_varying_rpm_turning.mp4"
+            autoPlay
+            muted
+            loop
+            className="w-full h-full object-contain"
+          />
+          <span className="absolute left-1/2 bottom-2 -translate-x-1/2 -translate-y-1/2 bg-background/80 text-white text-xl px-4 py-1 select-none pointer-events-none">
+            OUTPUT
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

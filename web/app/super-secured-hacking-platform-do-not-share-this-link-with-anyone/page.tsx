@@ -119,7 +119,12 @@ export default function Page() {
       <SoundEffects />
       <div className="grid grid-cols-4 grid-rows-4 gap-2 h-full">
         <div
-          className="col-span-3 row-span-3 gap-2 flex flex-col relative closed"
+          className={
+            "col-span-3 gap-2 flex flex-col relative closed col-start-1 row-start-1"
+          }
+          style={{
+            gridRow: tab === "credits" ? "span 4 / span 4" : "span 3 / span 3",
+          }}
           id="main-panel"
         >
           <nav className="flex gap-2 ">
@@ -190,7 +195,7 @@ export default function Page() {
               )}
             </Button>
           </nav>
-          {scenarioState === "success" && (
+          {scenarioState === "success" && tab !== "credits" && (
             <div className="text-white z-40 text-lg absolute bottom-16 left-1/2 -translate-x-1/2 text-center max-w-sm bg-background/90">
               CONGRATS! YOU HAVE DESTROYED THE DRONE. THANK YOU FOR PLAYING!
             </div>
@@ -231,7 +236,12 @@ export default function Page() {
         <div className="col-start-4 row-start-4 flex flex-col *:h-full">
           <You />
         </div>
-        <div className="col-span-3 row-start-4 flex flex-col *:h-full">
+        <div
+          className={cn(
+            "col-span-3 row-start-4 flex flex-col *:h-full",
+            tab === "credits" && "hidden"
+          )}
+        >
           <Controls />
         </div>
       </div>

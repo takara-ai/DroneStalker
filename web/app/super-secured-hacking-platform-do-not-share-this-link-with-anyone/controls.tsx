@@ -8,7 +8,6 @@ export default function Controls() {
     unlockedMotion,
     unlockedFire,
     unlockedTracking,
-    unlockedAutoFire,
     unlockedMotionPrediction,
     activeCamera,
     activeMotionDetection,
