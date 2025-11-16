@@ -108,7 +108,7 @@ const initialCodeState: CodeState = {
 
 export const useStore = create<StoreTypes>((set) => ({
   scenarioState: "intro",
-  dataId: "0",
+  dataId: "60",
   unlockedCamera: true,
   unlockedMotion: false,
   unlockedFire: false,
