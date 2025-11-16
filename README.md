@@ -131,7 +131,7 @@ The application includes a mission selector that allows you to play with differe
 - **[Cody Adam](https://www.linkedin.com/in/codyadam/)**: Web experience, Chatbot, Graphic direction, SFX
 - **[Jordan Legg](https://www.linkedin.com/in/404missinglink/)**: Dataset engineering, Data engineering, AI voice
 - **[Jacob Kenney](https://www.linkedin.com/in/jacob-kenney1/)**: ML/AI prediction, Data engineering
-- **[Mikus Sturmaniss](https://www.linkedin.com/in/mikussturmanis/)**: RPM challenge, Object detection
+- **[Mikus Sturmanis](https://www.linkedin.com/in/mikussturmanis/)**: RPM challenge, Object detection
 
 ## License
 
