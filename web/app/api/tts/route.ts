@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     {
       method: "POST",
       headers: {
-        "Accept": "audio/mpeg",
+        Accept: "audio/mpeg",
         "Content-Type": "application/json",
         "xi-api-key": apiKey,
       },
@@ -46,4 +46,3 @@ export async function GET(req: NextRequest) {
     },
   });
 }
-

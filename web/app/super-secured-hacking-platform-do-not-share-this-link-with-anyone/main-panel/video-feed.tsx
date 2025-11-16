@@ -36,8 +36,11 @@ export default function VideoFeed() {
   const projectileCanvasRef = useRef<ProjectileCanvasHandle>(null);
   const coloredVideoRef = useRef<HTMLVideoElement>(null);
   const motionVideoRef = useRef<HTMLVideoElement>(null);
+  const predictionVideoRef = useRef<HTMLVideoElement>(null);
   const transformContainerRef = useRef<HTMLDivElement>(null);
   const prevActiveMotionDetectionRef = useRef<boolean | undefined>(undefined);
+  const coloredVideoInitializedRef = useRef<boolean>(false);
+  const motionVideoInitializedRef = useRef<boolean>(false);
   // State for coordinates and position
   const [coordinates, setCoordinates] = useState<DronePosition[]>([]);
   const [normalizedPosition, setNormalizedPosition] =
@@ -61,6 +64,59 @@ export default function VideoFeed() {
       .catch((error) => {
         console.error("Failed to load coordinates:", error);
       });
+  }, [dataId]);
+
+  // Reset initialization flags when dataId changes
+  useEffect(() => {
+    coloredVideoInitializedRef.current = false;
+    motionVideoInitializedRef.current = false;
+  }, [dataId]);
+
+  // Randomize initial video time when videos load
+  useEffect(() => {
+    const coloredVideo = coloredVideoRef.current;
+    const motionVideo = motionVideoRef.current;
+
+    const setupVideoRandomization = (
+      video: HTMLVideoElement | null,
+      initializedRef: React.MutableRefObject<boolean>
+    ): (() => void) | undefined => {
+      if (!video || initializedRef.current) return undefined;
+
+      const handleLoadedMetadata = () => {
+        if (video.duration && !isNaN(video.duration) && video.duration > 0) {
+          // Set random time between 0 and duration
+          const randomTime = Math.random() * video.duration;
+          video.currentTime = randomTime;
+          initializedRef.current = true;
+        }
+      };
+
+      if (video.readyState >= 1) {
+        // Metadata already loaded
+        handleLoadedMetadata();
+      } else {
+        video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      }
+
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      };
+    };
+
+    const cleanup1 = setupVideoRandomization(
+      coloredVideo,
+      coloredVideoInitializedRef
+    );
+    const cleanup2 = setupVideoRandomization(
+      motionVideo,
+      motionVideoInitializedRef
+    );
+
+    return () => {
+      cleanup1?.();
+      cleanup2?.();
+    };
   }, [dataId]);
 
   // Sync video timestamps when switching between colored and motion videos
@@ -116,6 +172,88 @@ export default function VideoFeed() {
     // Return cleanup function if we added an event listener
     return cleanup;
   }, [activeMotionDetection]);
+
+  // Sync prediction video with active video
+  useEffect(() => {
+    if (!activeMotionPrediction || !activeCamera) {
+      return;
+    }
+
+    const activeVideo = activeMotionDetection
+      ? motionVideoRef.current
+      : coloredVideoRef.current;
+    const predictionVideo = predictionVideoRef.current;
+
+    if (!activeVideo || !predictionVideo) {
+      return;
+    }
+
+    // Sync prediction video time with active video using requestAnimationFrame
+    let animationFrameId: number;
+    const syncLoop = () => {
+      if (activeVideo.readyState >= 2 && predictionVideo.readyState >= 2) {
+        const currentTime = activeVideo.currentTime;
+        if (currentTime > 0 && !isNaN(currentTime)) {
+          // Only update if there's a significant difference to avoid jitter
+          // Use a smaller threshold (roughly one frame at 30fps)
+          const timeDiff = Math.abs(predictionVideo.currentTime - currentTime);
+          if (timeDiff > 0.033) {
+            predictionVideo.currentTime = currentTime;
+          }
+        }
+      }
+      animationFrameId = requestAnimationFrame(syncLoop);
+    };
+
+    // Initial sync when videos are ready
+    let handlePredictionVideoReady: (() => void) | null = null;
+    const handleActiveVideoReady = () => {
+      if (predictionVideo.readyState >= 2) {
+        const currentTime = activeVideo.currentTime;
+        if (currentTime > 0 && !isNaN(currentTime)) {
+          predictionVideo.currentTime = currentTime;
+        }
+        animationFrameId = requestAnimationFrame(syncLoop);
+      } else {
+        handlePredictionVideoReady = () => {
+          const currentTime = activeVideo.currentTime;
+          if (currentTime > 0 && !isNaN(currentTime)) {
+            predictionVideo.currentTime = currentTime;
+          }
+          animationFrameId = requestAnimationFrame(syncLoop);
+          if (handlePredictionVideoReady) {
+            predictionVideo.removeEventListener(
+              "loadeddata",
+              handlePredictionVideoReady
+            );
+          }
+        };
+        predictionVideo.addEventListener(
+          "loadeddata",
+          handlePredictionVideoReady
+        );
+      }
+    };
+
+    if (activeVideo.readyState >= 2) {
+      handleActiveVideoReady();
+    } else {
+      activeVideo.addEventListener("loadeddata", handleActiveVideoReady);
+    }
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      activeVideo.removeEventListener("loadeddata", handleActiveVideoReady);
+      if (handlePredictionVideoReady) {
+        predictionVideo.removeEventListener(
+          "loadeddata",
+          handlePredictionVideoReady
+        );
+      }
+    };
+  }, [activeMotionPrediction, activeCamera, activeMotionDetection]);
 
   // Track video time and update position using requestAnimationFrame for smooth updates
   useEffect(() => {
@@ -378,6 +516,18 @@ export default function VideoFeed() {
             className={cn(
               "w-full h-full object-cover",
               activeCamera && activeMotionDetection ? "opened" : "hidden"
+            )}
+          ></video>
+          {/* Prediction video overlay - only show when motion prediction is active */}
+          <video
+            ref={predictionVideoRef}
+            src={`/data/${dataId}/prediction.mp4`}
+            autoPlay
+            muted
+            loop
+            className={cn(
+              "absolute inset-0 w-full h-full object-cover opacity-50 pointer-events-none z-15",
+              activeCamera && activeMotionPrediction ? "opened" : "hidden"
             )}
           ></video>
           {/* Drone position rectangle overlay - only show when tracking is active */}

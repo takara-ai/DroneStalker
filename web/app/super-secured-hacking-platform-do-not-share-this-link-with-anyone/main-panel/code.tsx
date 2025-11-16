@@ -362,8 +362,9 @@ export default function Code({
         onClick={handleCodeAreaClick}
       >
         <CodeBlock
-          code={codeTypedCode || "Type your code here..."}
+          code={targetCode}
           lang="python"
+          revealProgress={codeProgress}
         />
       </div>
       <div className="absolute right-6 top-2 text-sm max-w-xs text-pretty text-right bg-background/50">
@@ -436,12 +437,45 @@ async function highlight(code: string, lang: BundledLanguage) {
   }) as JSX.Element;
 }
 
-function CodeBlock({ code, lang }: { code: string; lang: BundledLanguage }) {
+function CodeBlock({
+  code,
+  lang,
+  revealProgress,
+}: {
+  code: string;
+  lang: BundledLanguage;
+  revealProgress: number; // 0-100
+}) {
   const [nodes, setNodes] = useState<JSX.Element | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Only highlight once when code changes
   useLayoutEffect(() => {
     void highlight(code, lang).then(setNodes);
   }, [code, lang]);
 
-  return nodes ?? <p>Loading...</p>;
+  // Use height constraint to reveal content based on progress
+  useLayoutEffect(() => {
+    if (!containerRef.current || !nodes || revealProgress === undefined) return;
+
+    requestAnimationFrame(() => {
+      const codeElement = containerRef.current?.querySelector("code");
+      if (!codeElement) return;
+
+      // First, get the full height without constraints
+      codeElement.style.height = "auto";
+      codeElement.style.maxHeight = "none";
+      const totalHeight = codeElement.scrollHeight;
+
+      // Calculate the height to reveal based on progress
+      const revealHeight = (totalHeight * revealProgress) / 100;
+
+      // Constrain the height to only show the revealed portion
+      codeElement.style.height = `${revealHeight}px`;
+      codeElement.style.maxHeight = `${revealHeight}px`;
+      codeElement.style.overflow = "hidden";
+    });
+  }, [revealProgress, nodes, code]);
+
+  return <div ref={containerRef}>{nodes ?? <p>Loading...</p>}</div>;
 }
