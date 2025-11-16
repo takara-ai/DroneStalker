@@ -211,7 +211,7 @@ export default function TextingChat() {
                 : "text-muted-foreground"
             )}
           >
-            {m.role === "user" ? "YOU: " : ""}
+            {m.role === "user" ? "YOU: " : "COMMANDER: "}
             {m.parts
               .filter((part) => part.type === "text")
               .map((part, i) => (

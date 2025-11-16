@@ -14,7 +14,7 @@ export function SoundEffects() {
     // Background noise - looping
     const bgNoise = new Audio("/white-noise.wav");
     bgNoise.loop = true;
-    bgNoise.volume = 0.1; // Adjust volume as needed
+    bgNoise.volume = 0.05; // Adjust volume as needed
     backgroundNoiseRef.current = bgNoise;
 
     // Start background sound immediately

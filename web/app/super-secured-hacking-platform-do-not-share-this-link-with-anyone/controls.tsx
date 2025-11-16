@@ -78,7 +78,7 @@ export default function Controls() {
         label="auto fire"
         value={activeAutoFire}
         onChange={setActiveAutoFire}
-        locked={!unlockedAutoFire}
+        locked={!unlockedMotionPrediction}
       />
     </div>
   );

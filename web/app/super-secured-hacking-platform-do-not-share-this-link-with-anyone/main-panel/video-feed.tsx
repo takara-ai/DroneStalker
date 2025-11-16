@@ -6,6 +6,7 @@ import { highlightId } from "@/lib/highlight";
 import { useRef, useEffect, useState } from "react";
 import ProjectileCanvas, {
   type ProjectileCanvasHandle,
+  TRAVEL_TIME,
 } from "./projectile-canvas";
 import {
   loadCoordinates,
@@ -26,6 +27,9 @@ export default function VideoFeed() {
   const activeFire = useStore((state) => state.activeFire);
   const activeAutoFire = useStore((state) => state.activeAutoFire);
   const activeLockTarget = useStore((state) => state.activeLockTarget);
+  const activeMotionPrediction = useStore(
+    (state) => state.activeMotionPrediction
+  );
   const dataId = useStore((state) => state.dataId);
   const unlockedCode = useStore((state) => state.unlockedCode);
   const setUnlockedCode = useStore((state) => state.setUnlockedCode);
@@ -38,12 +42,15 @@ export default function VideoFeed() {
   const [coordinates, setCoordinates] = useState<DronePosition[]>([]);
   const [normalizedPosition, setNormalizedPosition] =
     useState<NormalizedPosition | null>(null);
+  const [predictedPosition, setPredictedPosition] =
+    useState<NormalizedPosition | null>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [containerSize, setContainerSize] = useState<{
     width: number;
     height: number;
   } | null>(null);
   const normalizedPositionRef = useRef<NormalizedPosition | null>(null);
+  const predictedPositionRef = useRef<NormalizedPosition | null>(null);
 
   // Load coordinates on mount and when dataId changes
   useEffect(() => {
@@ -144,7 +151,31 @@ export default function VideoFeed() {
           );
           setNormalizedPosition(normalized);
           normalizedPositionRef.current = normalized;
+
+          // Calculate predicted position (current time + travel time in seconds)
+          const predictedTime = time + TRAVEL_TIME / 1000;
+          const predictedPos = getPositionAtTime(coordinates, predictedTime);
+          if (predictedPos) {
+            const predictedNormalized = normalizePositionWithObjectCover(
+              predictedPos,
+              videoWidth,
+              videoHeight,
+              containerWidth,
+              containerHeight
+            );
+            setPredictedPosition(predictedNormalized);
+            predictedPositionRef.current = predictedNormalized;
+          } else {
+            setPredictedPosition(null);
+            predictedPositionRef.current = null;
+          }
         }
+      } else {
+        // No position found within margin - clear the box
+        setNormalizedPosition(null);
+        normalizedPositionRef.current = null;
+        setPredictedPosition(null);
+        predictedPositionRef.current = null;
       }
     };
 
@@ -196,13 +227,18 @@ export default function VideoFeed() {
   };
 
   // Autofire: fire projectiles every 0.2 seconds at the drone's center position
+  // Uses predicted position if motion prediction is active and available, otherwise uses current position
   useEffect(() => {
     if (!activeAutoFire || !projectileCanvasRef.current) {
       return;
     }
 
     // Fire immediately on first enable if we have a position
-    const initialPosition = normalizedPositionRef.current;
+    // Prioritize predicted position if motion prediction is active
+    const initialPosition =
+      activeMotionPrediction && predictedPositionRef.current
+        ? predictedPositionRef.current
+        : normalizedPositionRef.current;
     if (initialPosition) {
       const centerX = initialPosition.x + initialPosition.width / 2;
       const centerY = initialPosition.y + initialPosition.height / 2;
@@ -217,8 +253,11 @@ export default function VideoFeed() {
         return;
       }
 
-      // Get latest position from ref (always current)
-      const currentPosition = normalizedPositionRef.current;
+      // Get latest position from ref - prioritize predicted position if motion prediction is active
+      const currentPosition =
+        activeMotionPrediction && predictedPositionRef.current
+          ? predictedPositionRef.current
+          : normalizedPositionRef.current;
       if (!currentPosition) {
         return;
       }
@@ -237,7 +276,7 @@ export default function VideoFeed() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [activeAutoFire, activeFire]);
+  }, [activeAutoFire, activeFire, activeMotionPrediction]);
 
   // Update container size when it changes
   useEffect(() => {
@@ -258,16 +297,22 @@ export default function VideoFeed() {
   }, []);
 
   // Calculate transform for lock target feature
+  // Use predicted position if motion prediction is activated and available, otherwise use current position
+  const lockTargetPosition =
+    activeLockTarget && activeMotionPrediction && predictedPosition
+      ? predictedPosition
+      : normalizedPosition;
+
   const lockTargetTransform =
-    activeLockTarget && normalizedPosition && containerSize
+    activeLockTarget && lockTargetPosition && containerSize
       ? (() => {
           // Get container dimensions
           const containerWidth = containerSize.width;
           const containerHeight = containerSize.height;
 
           // Calculate center of normalized position (0-1 range)
-          const centerX = normalizedPosition.x + normalizedPosition.width / 2;
-          const centerY = normalizedPosition.y + normalizedPosition.height / 2;
+          const centerX = lockTargetPosition.x + lockTargetPosition.width / 2;
+          const centerY = lockTargetPosition.y + lockTargetPosition.height / 2;
 
           // Zoom level (2x)
           const zoom = 3;
@@ -307,7 +352,7 @@ export default function VideoFeed() {
         )}
         <div
           ref={transformContainerRef}
-          className="relative size-full flex transition-transform duration-200"
+          className="relative size-full flex transition-transform duration-100"
           style={{
             transform: lockTargetTransform,
             transformOrigin: "center center",
@@ -337,34 +382,51 @@ export default function VideoFeed() {
           ></video>
           {/* Drone position rectangle overlay - only show when tracking is active */}
           {activeCamera &&
-            activeTracking &&
-            normalizedPosition &&
+            (activeTracking || activeMotionPrediction) &&
+            (normalizedPosition || predictedPosition) &&
             videoLoaded && (
               <>
-                <div
-                  className={cn(
-                    "absolute border-2 border-red-500 bg-red-500/20 pointer-events-none z-20",
-                    activeLockTarget && "opacity-30"
-                  )}
-                  style={{
-                    left: `${normalizedPosition.x * 100}%`,
-                    top: `${normalizedPosition.y * 100}%`,
-                    width: `${normalizedPosition.width * 100}%`,
-                    height: `${normalizedPosition.height * 100}%`,
-                  }}
-                />
-                {activeLockTarget && (
+                {normalizedPosition && activeTracking && (
+                  <div
+                    className={cn(
+                      "absolute border-2 border-red-500 bg-red-500/20 pointer-events-none z-20",
+                      activeLockTarget && "opacity-30"
+                    )}
+                    style={{
+                      left: `${normalizedPosition.x * 100}%`,
+                      top: `${normalizedPosition.y * 100}%`,
+                      width: `${normalizedPosition.width * 100}%`,
+                      height: `${normalizedPosition.height * 100}%`,
+                    }}
+                  />
+                )}
+                {/* Predicted position rectangle - only show when lock target is active */}
+                {activeMotionPrediction && predictedPosition && (
+                  <div
+                    className={cn(
+                      "absolute border-2 border-blue-500 bg-blue-500/20 pointer-events-none z-25",
+                      activeLockTarget && "opacity-30"
+                    )}
+                    style={{
+                      left: `${predictedPosition.x * 100}%`,
+                      top: `${predictedPosition.y * 100}%`,
+                      width: `${predictedPosition.width * 100}%`,
+                      height: `${predictedPosition.height * 100}%`,
+                    }}
+                  />
+                )}
+                {activeLockTarget && lockTargetPosition && (
                   <>
                     <div
                       className="absolute z-30 pointer-events-none size-10"
                       style={{
                         left: `${
-                          normalizedPosition.x * 100 +
-                          normalizedPosition.width * 50
+                          lockTargetPosition.x * 100 +
+                          lockTargetPosition.width * 50
                         }%`,
                         top: `${
-                          normalizedPosition.y * 100 +
-                          normalizedPosition.height * 50
+                          lockTargetPosition.y * 100 +
+                          lockTargetPosition.height * 50
                         }%`,
                         transform: "translate(-50%, -50%)",
                       }}
@@ -380,7 +442,11 @@ export default function VideoFeed() {
                           cx="24"
                           cy="24"
                           r="16"
-                          stroke="#EF4444"
+                          stroke={
+                            activeMotionPrediction && predictedPosition
+                              ? "#3B82F6"
+                              : "#EF4444"
+                          }
                           strokeWidth="2"
                           fill="none"
                         />
@@ -388,7 +454,11 @@ export default function VideoFeed() {
                           cx="24"
                           cy="24"
                           r="3"
-                          fill="#EF4444"
+                          fill={
+                            activeMotionPrediction && predictedPosition
+                              ? "#3B82F6"
+                              : "#EF4444"
+                          }
                           opacity="0.7"
                         />
                         <line
@@ -396,7 +466,11 @@ export default function VideoFeed() {
                           y1="0"
                           x2="24"
                           y2="9"
-                          stroke="#EF4444"
+                          stroke={
+                            activeMotionPrediction && predictedPosition
+                              ? "#3B82F6"
+                              : "#EF4444"
+                          }
                           strokeWidth="2"
                         />
                         <line
@@ -404,7 +478,11 @@ export default function VideoFeed() {
                           y1="39"
                           x2="24"
                           y2="48"
-                          stroke="#EF4444"
+                          stroke={
+                            activeMotionPrediction && predictedPosition
+                              ? "#3B82F6"
+                              : "#EF4444"
+                          }
                           strokeWidth="2"
                         />
                         <line
@@ -412,7 +490,11 @@ export default function VideoFeed() {
                           y1="24"
                           x2="9"
                           y2="24"
-                          stroke="#EF4444"
+                          stroke={
+                            activeMotionPrediction && predictedPosition
+                              ? "#3B82F6"
+                              : "#EF4444"
+                          }
                           strokeWidth="2"
                         />
                         <line
@@ -420,7 +502,11 @@ export default function VideoFeed() {
                           y1="24"
                           x2="48"
                           y2="24"
-                          stroke="#EF4444"
+                          stroke={
+                            activeMotionPrediction && predictedPosition
+                              ? "#3B82F6"
+                              : "#EF4444"
+                          }
                           strokeWidth="2"
                         />
                       </svg>

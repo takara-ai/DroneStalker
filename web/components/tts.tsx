@@ -31,9 +31,6 @@ export function Tts() {
 
       processing = true;
 
-      // Stop all currently running audio
-      stopAllAudio();
-
       try {
         const response = await fetch(
           `/api/tts?text=${encodeURIComponent(text)}`
@@ -78,8 +75,6 @@ export function Tts() {
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
 
-        activeAudios.add(audio);
-
         audio.onended = () => {
           activeAudios.delete(audio);
           URL.revokeObjectURL(audioUrl);
@@ -89,6 +84,12 @@ export function Tts() {
           activeAudios.delete(audio);
           URL.revokeObjectURL(audioUrl);
         };
+
+        // Stop all currently running audio right before playing the new one
+        stopAllAudio();
+
+        // Add the new audio to activeAudios after stopping old ones
+        activeAudios.add(audio);
 
         await audio.play();
       } catch (error) {

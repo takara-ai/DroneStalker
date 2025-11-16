@@ -5,7 +5,7 @@ type CodeKey = "motionDetection" | "tracking" | "positionPrediction";
 
 type CodeState = {
   unlocked: boolean;
-  typingSpeedIndex: number; // 0-5, where 0 is slowest and 5 is fastest
+  typingSpeedIndex: number; // 0-3, where 0 is slowest and 3 is fastest
   codeProgress: number; // 0-100, progress of code typing
   codeTypedCode: string; // The actual typed code string
 };
@@ -35,7 +35,6 @@ type StoreTypes = {
   activeMotionPrediction: boolean;
   activeLockTarget: boolean;
   droneHealth: number; // 0-100, drone health percentage
-  hasWin: boolean; // True when player has won (drone health reached 0)
   codeStates: Record<CodeKey, CodeState>;
   ttsQueue: string[]; // Queue of messages from commander to be spoken via text-to-speech
   setScenarioState: (value: keyof typeof scenarioStates) => void;
@@ -64,7 +63,6 @@ type StoreTypes = {
   setActiveMotionPrediction: (value: boolean) => void;
   setActiveLockTarget: (value: boolean) => void;
   setDroneHealth: (value: number) => void;
-  setHasWin: (value: boolean) => void;
   setCodeUnlocked: (codeKey: CodeKey, value: boolean) => void;
   setCodeTypingSpeedIndex: (codeKey: CodeKey, value: number) => void;
   setCodeProgress: (codeKey: CodeKey, value: number) => void;
@@ -84,7 +82,7 @@ export const scenarioStates = {
   mission:
     "With the camera feed active, provide the user with crucial mission context. Inform them that their task is to eliminate an enemy drone breaching our airspace. Emphasize the urgency and threat the drone poses. The 'Fire' ability is already unlocked. Instruct the user to toggle on 'left click to fire' and attempt to shoot the enemy drone manually. Note that the drone moves too quickly for manual targeting, and prompt the user to experience this difficulty. After they try and miss, the Code tab will be automatically unlocked.",
   codeUnlocked:
-    "The Code tab has been unlocked. Clearly instruct the user to open the Code tab to develop an automated interception solution. We need a code that extract movement from a video comparing a frame to the next frame and making a difference between the two. This difference will highlight the movement of objects in the video. That data will be crutial for tracking the drone's position.",
+    "The Code tab has been unlocked. We won't be able to shoot the drone with manual aiming, its too fast. Clearly instruct the user to open the Code tab to develop an automated interception solution. We need a code that extract movement from a video comparing a frame to the next frame and making a difference between the two. This difference will highlight the movement of objects in the video. That data will be crutial for tracking the drone's position.",
   firstCode:
     "The user has entered the Code tab. As the Commander, task them with writing software to extract and track the drone's position from the camera feed (motion detection). Clearly specify that completion of this code is required before proceeding.",
   motionDetection:
@@ -110,7 +108,7 @@ const initialCodeState: CodeState = {
 
 export const useStore = create<StoreTypes>((set) => ({
   scenarioState: "intro",
-  dataId: "60",
+  dataId: "0",
   unlockedCamera: true,
   unlockedMotion: false,
   unlockedFire: false,
@@ -128,7 +126,6 @@ export const useStore = create<StoreTypes>((set) => ({
   activeMotionPrediction: false,
   activeLockTarget: false,
   droneHealth: 100, // Start at full health
-  hasWin: false, // Start with no win
   codeStates: {
     motionDetection: { ...initialCodeState },
     tracking: { ...initialCodeState },
@@ -312,16 +309,18 @@ export const useStore = create<StoreTypes>((set) => ({
   setDroneHealth: (value) =>
     set((state) => {
       const newHealth = Math.max(0, Math.min(100, value));
-      // Win condition: when drone health reaches 0
-      if (newHealth === 0 && !state.hasWin) {
+      // Win condition: when drone health reaches 0, set scenario state to success
+      if (newHealth === 0 && state.scenarioState !== "success") {
         // Trigger action to notify commander
         setTimeout(() => {
-          useStore.getState().triggerAction("destroyed the enemy drone");
+          useStore
+            .getState()
+            .triggerAction("destroyed the enemy drone, victory achieved");
           highlightId("tab-credits");
         }, 0);
         return {
           droneHealth: newHealth,
-          hasWin: true,
+          scenarioState: "success" as const,
           unlockedCredits: true,
         };
       }
@@ -334,7 +333,6 @@ export const useStore = create<StoreTypes>((set) => ({
       }
       return { droneHealth: newHealth };
     }),
-  setHasWin: (value) => set({ hasWin: value }),
   setCodeUnlocked: (codeKey, value) =>
     set((state) => ({
       codeStates: {
@@ -353,7 +351,7 @@ export const useStore = create<StoreTypes>((set) => ({
           ...state.codeStates[codeKey],
           typingSpeedIndex: Number.isNaN(value)
             ? 0
-            : Math.max(0, Math.min(5, value)),
+            : Math.max(0, Math.min(3, value)),
         },
       },
     })),
@@ -442,7 +440,6 @@ export const useStore = create<StoreTypes>((set) => ({
       activeMotionPrediction: false,
       activeLockTarget: false,
       droneHealth: 100,
-      hasWin: false,
       ttsQueue: [],
     }),
 }));

@@ -28,6 +28,8 @@ interface ProjectileCanvasProps {
   onMiss?: () => void; // Callback when a projectile misses
 }
 
+export const TRAVEL_TIME = 1000; // 1 second
+
 export interface ProjectileCanvasHandle {
   addProjectile: (targetXPercent: number, targetYPercent: number) => void;
 }
@@ -66,7 +68,7 @@ const ProjectileCanvas = forwardRef<
   // Initialize hit sound effect
   useEffect(() => {
     const hitSound = new Audio("/hit.wav");
-    hitSound.volume = 0.5; // Adjust volume as needed
+    hitSound.volume = 0.2; // Adjust volume as needed
     hitSoundRef.current = hitSound;
 
     return () => {
@@ -171,7 +173,7 @@ const ProjectileCanvas = forwardRef<
 
       const startXPercent = 50; // Center horizontally
       const startYPercent = 110; // Near bottom (98%)
-      const duration = 1000; // 1 second
+      const duration = TRAVEL_TIME;
       // Scale initial size based on canvas height to maintain consistent visual size
       // Base size of ~1.5% of canvas height, with a minimum of 12px
       const baseSize =
@@ -312,7 +314,7 @@ const ProjectileCanvas = forwardRef<
             }
             // Reduce drone health by 5 points per hit
             const currentHealth = getStoreState().droneHealth;
-            setDroneHealth(Math.max(0, currentHealth - 5));
+            setDroneHealth(Math.max(0, currentHealth - 2));
           }
         }
 

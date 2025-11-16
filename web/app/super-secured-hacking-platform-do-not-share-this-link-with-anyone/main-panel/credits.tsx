@@ -18,7 +18,7 @@ export default function Credits() {
 
   return (
     <div className="border-4 flex h-full opened flex-col gap-1 p-6 overflow-y-auto text-sm">
-      <h1 className="text-2xl font-bold">Missions</h1>
+      <Title>Mission selector</Title>
       <div className="flex flex-wrap gap-2 mb-4">
         {missions.map((missionId) => (
           <Button
@@ -34,12 +34,52 @@ export default function Credits() {
         ))}
       </div>
 
-      <h1 className="text-2xl font-bol mt-4">The Team</h1>
-      <p>Cody Adam: Web experience</p>
-      <p>Jordan Legg:</p>
-      <p>Jacob Kenney:</p>
-      <p>Mikus Sturmaniss:</p>
-      <h1 className="text-2xl font-bold mt-4">Challenge and tech stack</h1>
+      <Title>The team</Title>
+      <p>
+        <Link
+          href="https://www.linkedin.com/in/codyadam/"
+          className="text-white underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Cody Adam
+        </Link>
+        : Web experience, Chatbot, Graphic direction, SFX
+      </p>
+      <p>
+        <Link
+          href="https://www.linkedin.com/in/404missinglink/"
+          className="text-white underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Jordan Legg
+        </Link>
+        : Dataset engineering, Data engineering, AI voice
+      </p>
+      <p>
+        <Link
+          href="https://www.linkedin.com/in/jacob-kenney1/"
+          className="text-white underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Jacob Kenney
+        </Link>
+        : ML/AI prediction, Data engineering
+      </p>
+      <p>
+        <Link
+          href="https://www.linkedin.com/in/mikussturmanis/"
+          className="text-white underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Mikus Sturmaniss
+        </Link>
+        : RPM challenge, Object detection
+      </p>
+      <Title>Challenge and tech stack</Title>
       <p>
         <strong>Challenge:</strong> Sensorfusion - Lights, Camera, Reaction!
       </p>
@@ -78,6 +118,21 @@ export default function Credits() {
         <li>- Tailwind</li>
         <li>- Vercel</li>
       </ul>
+      <p className="mt-2">
+        <strong>GitHub repository:</strong>{" "}
+        <Link
+          href="https://github.com/takara-ai/DroneStalker"
+          className="text-white underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          takara-ai/DroneStalker
+        </Link>
+      </p>
     </div>
   );
+}
+
+function Title({ children }: { children: React.ReactNode }) {
+  return <h1 className="text-4xl font-bold not-first:mt-8 mb-4">{children}</h1>;
 }

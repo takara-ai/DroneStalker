@@ -36,7 +36,7 @@ export function parseCoordinates(content: string): DronePosition[] {
     // Skip empty lines
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
-    
+
     // Updated regex to handle:
     // - Optional negative sign: -?
     // - Numbers with or without decimals: [0-9]+(\.[0-9]+)?
@@ -64,16 +64,25 @@ export function parseCoordinates(content: string): DronePosition[] {
 
 /**
  * Find the closest position to a given timestamp using binary search
- * Returns the position with the closest time value
+ * Returns the position with the closest time value, or null if the closest
+ * position is more than 0.5 seconds away from the target time
  */
 export function getPositionAtTime(
   positions: DronePosition[],
   targetTime: number
 ): DronePosition | null {
   if (positions.length === 0) return null;
-  if (targetTime <= positions[0].time) return positions[0];
+
+  const MARGIN_SECONDS = 0.1;
+
+  // Check edge cases with margin
+  if (targetTime <= positions[0].time) {
+    const diff = Math.abs(targetTime - positions[0].time);
+    return diff <= MARGIN_SECONDS ? positions[0] : null;
+  }
   if (targetTime >= positions[positions.length - 1].time) {
-    return positions[positions.length - 1];
+    const diff = Math.abs(targetTime - positions[positions.length - 1].time);
+    return diff <= MARGIN_SECONDS ? positions[positions.length - 1] : null;
   }
 
   // Binary search for closest position
@@ -90,15 +99,20 @@ export function getPositionAtTime(
   }
 
   // Check which is closer: positions[left] or positions[left - 1]
+  let closest: DronePosition;
   if (left > 0) {
     const prev = positions[left - 1];
     const curr = positions[left];
     const prevDiff = Math.abs(targetTime - prev.time);
     const currDiff = Math.abs(targetTime - curr.time);
-    return prevDiff <= currDiff ? prev : curr;
+    closest = prevDiff <= currDiff ? prev : curr;
+  } else {
+    closest = positions[left];
   }
 
-  return positions[left];
+  // Check if the closest position is within the margin
+  const diff = Math.abs(targetTime - closest.time);
+  return diff <= MARGIN_SECONDS ? closest : null;
 }
 
 /**
