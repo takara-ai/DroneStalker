@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 export default function Credits() {
   const dataId = useStore((state) => state.dataId);
@@ -117,6 +118,26 @@ export default function Credits() {
         </Link>
         : RPM challenge, Object detection
       </p>
+      <Title>AI/ML Model Development</Title>
+      <p className="mt-2">
+        <b>Drone Detection:</b> We fine-tuned YOLO v8n small on a subset of the
+        FRED dataset for an initial proof of concept. After cleaning and
+        uploading the complete dataset to Hugging Face, we trained YOLO v12
+        small on the entire FRED dataset for reliable drone detection.
+      </p>
+      <p className="mt-2">
+        <b>Drone Movement Prediction:</b> Our model predicts drone movement in
+        the next 12 frames (0.4s), matching the &ldquo;short-term&rdquo;
+        prediction task from the FRED research paper. Our best model
+        outperformed the equivalent model in the FRED paper by 50.3% on average
+        across all predicted frames, and 28.9% on the final prediction.
+      </p>
+      <p className="mt-2">
+        We trained 4 different model architectures, with our best being a
+        lightweight LSTM model (300k parameters) that beats all models described
+        in the FRED paper while using far fewer parameters, faster inference
+        times, and lower computational cost than the paper&apos;s best solution.
+      </p>
       <Title>Challenge and tech stack</Title>
       <p>
         <strong>Challenge:</strong> Sensorfusion - Lights, Camera, Reaction!
@@ -194,6 +215,16 @@ export default function Credits() {
             OUTPUT
           </span>
         </div>
+      </div>
+      <Title>Appendix: Model prediction demo</Title>
+      <div className="w-full aspect-video p-2 border-4 border-border/50 relative flex">
+        <Image
+          height={700}
+          width={1000}
+          src="/demo-prediction.gif"
+          alt="Model prediction demo"
+          className="w-full h-full object-contain"
+        />
       </div>
     </div>
   );

@@ -9,10 +9,14 @@ export default function Home() {
       <div className="flex flex-col gap-2 items-center justify-center">
         <h1 className="text-2xl font-bold">Disclaimer</h1>
         <p className="text-sm max-w-xs text-center">
-          For the best experience, please turn on{" "}
-          <span className="font-bold text-white">AUDIO</span> and use{" "}
-          <span className="font-bold text-white">FULLSCREEN MODE</span>. Mobile
-          devices are not supported.
+          For optimal results, enable{" "}
+          <span className="font-bold text-white">AUDIO</span> and{" "}
+          <span className="font-bold text-white">FULLSCREEN MODE</span>.<br />
+          This experience is designed for desktop only.
+          <br />
+          <span className="text-white font-semibold">
+            Chrome browser is recommended.
+          </span>
         </p>
         <Button
           className="mt-4"

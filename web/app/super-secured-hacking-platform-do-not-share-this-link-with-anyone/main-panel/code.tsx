@@ -357,7 +357,7 @@ export default function Code({
   return (
     <div className="border-4 p-2 flex overflow-hidden h-full opened gap-2 flex-col relative">
       <div
-        className="rounded-none overflow-y-auto flex-1 cursor-text"
+        className="rounded-none overflow-y-auto flex-1 cursor-text relative"
         ref={scrollRef}
         onClick={handleCodeAreaClick}
       >
@@ -366,6 +366,13 @@ export default function Code({
           lang="python"
           revealProgress={codeProgress}
         />
+        {codeProgress === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-foreground/50 text-lg font-mono">
+              Type your code here...
+            </span>
+          </div>
+        )}
       </div>
       <div className="absolute right-6 top-2 text-sm max-w-xs text-pretty text-right bg-background/50">
         (actual working code we wrote to solve the challenge, available on{" "}

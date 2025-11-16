@@ -28,6 +28,48 @@ This approach makes advanced ML/AI concepts—like computer vision, object track
 - **Drone Detection & Tracking**: Find and track the drone in each frame
 - **Trajectory Prediction**: Train a machine learning model to predict where the drone will go next
 
+## AI/ML Model Development
+
+### Drone Detection
+
+For drone detection, we fine-tuned the **YOLO v8n small model** as an initial proof of concept. This first version was trained only on `0.zip` of the FRED dataset. Once dataset cleaning was complete and the entire dataset was uploaded to Hugging Face (not in a zipped format), we improved our detection system significantly. We then trained **YOLO v12 small** on the entire FRED dataset for reliable, production-ready drone detection across all mission scenarios.
+
+### Drone Movement Prediction
+
+We predict drone movement in the next **12 frames (0.4s)**—exactly as described as "short-term" in Table 4 of the FRED research paper.
+
+Our best model (of the 4 we trained for this task) **beat the equivalent model in Table 4 of the FRED research paper by 50.3% on average across all predicted frames, and 28.9% on the final prediction**.
+
+Our best model also improved on the best model provided in Table 4 (CNN + transformer with event and RGB data) with:
+
+- **Far fewer parameters**
+- **Faster inference times**
+- **Less training time**
+- **Lower computational cost**
+
+#### Models Trained
+
+We trained 4 different model architectures:
+
+1. **Computed kinematics + CNN (event data only) → Encoder/Decoder Transformer** (3M parameters)
+
+   - Currently training on GPU in the cloud
+   - Expected to be a further improvement, considerably improving upon the solutions described in the FRED paper
+
+2. **Computed kinematics + CNN (event data only) → GRU**
+
+3. **Coordinates only → GRU**
+
+4. **Our best model: Computed kinematics + CNN (event data only) → LSTM** (300k parameters)
+   - **State-of-the-art (SOTA)** performance
+   - **Beats ALL models described in the FRED paper**
+   - Evolution of this model:
+     - **First version**: Used M2E with 2 layers (200k parameters)
+     - **Improved version**: Added L2 loss to promote exploration, increased to 3 layers (~330k parameters)
+     - **Final version**: Current SOTA implementation with optimal architecture and training strategy
+
+The 3 million parameter transformer-based model is training on GPU in the cloud and we expect this to be a further improvement, considerably improving upon the solutions described in the FRED paper—all achieved in just 40 hours.
+
 ## Side Challenge
 
 **Fan Speed Prediction**: Estimate the rotation speed of a fan seen in the camera feed using frequency analysis. See the visualization in the credits section of the application.
