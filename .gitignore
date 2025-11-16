@@ -10,3 +10,7 @@ yolo/.venv
 yolo/data_yolo/*
 yolo/__pycache__/*
 yolo/output.mp4
+prediction/*.pth
+outputs/
+web/public/data/60/*
+prediction/__pycache__/*
