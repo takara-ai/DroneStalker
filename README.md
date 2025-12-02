@@ -2,6 +2,8 @@
 
 A real-time drone tracking and prediction system built in 40 hours at **Junction 2025: Utopia & Dystopia**, held in Espoo, Finland.
 
+![DroneStalker](./media/cover.png)
+
 ## Overview
 
 DroneStalker is an interactive web application that tracks drones in video feeds and uses machine learning to predict their future trajectories. The project uses the [FRED dataset](https://miccunifi.github.io/FRED/), which contains video frames from both RGB and motion (event) cameras.
